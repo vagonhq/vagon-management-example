@@ -1,0 +1,582 @@
+{% extends "base.html" %}
+
+{% block title %}{{ seat.name or 'Seat' }} - Vagon API Example{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Breadcrumb -->
+    <nav class="flex items-center space-x-2 text-sm text-vagon-500">
+        <a href="{{ url_for('index') }}" class="hover:text-vagon-700">Seats</a>
+        <span>/</span>
+        <span class="text-vagon-900">{{ seat.name or 'Seat #' ~ seat.id }}</span>
+    </nav>
+
+    <!-- Seat Info Card -->
+    <div class="bg-white rounded-lg border border-vagon-200 p-6">
+        <div class="flex justify-between items-start">
+            <div>
+                <h1 class="text-2xl font-semibold text-vagon-900">{{ seat.name or 'Seat #' ~ seat.id }}</h1>
+                <p class="mt-1 text-sm text-vagon-500">
+                    {% if seat.user %}
+                        {{ seat.user.name or seat.user.email }}
+                    {% else %}
+                        No user assigned
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <!-- Machine Info -->
+        {% if seat.machine %}
+        <div class="mt-6 pt-6 border-t border-vagon-200">
+            <h2 class="text-sm font-medium text-vagon-900 mb-4">Machine</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                    <p class="text-xs text-vagon-500">Name</p>
+                    <p class="text-sm text-vagon-900">{{ seat.machine.name or 'Machine' }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-vagon-500">Status</p>
+                    <span class="inline-flex items-center text-sm status-{{ seat.machine.status }}">
+                        <span class="w-2 h-2 mr-1.5 rounded-full bg-current"></span>
+                        {{ seat.machine.friendly_status or seat.machine.status }}
+                    </span>
+                </div>
+                <div>
+                    <p class="text-xs text-vagon-500">Region</p>
+                    <p class="text-sm text-vagon-900">{{ seat.machine.region }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-vagon-500">Type</p>
+                    <div class="flex items-center space-x-2">
+                        <select id="machineTypeSelect" 
+                                onchange="changeMachineType({{ seat.machine.id }}, this.value)"
+                                {% if seat.machine.status != 'stopped' %}disabled{% endif %}
+                                class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500 {% if seat.machine.status != 'stopped' %}bg-vagon-50 text-vagon-500 cursor-not-allowed{% endif %}"
+                                {% if seat.machine.status != 'stopped' %}title="Machine must be stopped to change type"{% endif %}>
+                            <option value="" disabled>Loading...</option>
+                        </select>
+                        <span id="machineTypeLoading" class="text-xs text-vagon-400">Loading...</span>
+                        {% if seat.machine.status != 'stopped' %}
+                        <span class="text-xs text-vagon-400" title="Machine must be stopped to change type">(Stop machine to change)</span>
+                        {% endif %}
+                        <span id="currentMachineType" class="text-sm text-vagon-500 hidden">{{ seat.machine.machine_type or '' }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Machine Actions -->
+            <div class="mt-4 flex space-x-2">
+                {% if seat.machine.status == 'stopped' %}
+                    <button onclick="startMachine({{ seat.machine.id }})"
+                            class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        Start Machine
+                    </button>
+                {% elif seat.machine.status == 'running' %}
+                    <button onclick="stopMachine({{ seat.machine.id }})"
+                            class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">
+                        Stop Machine
+                    </button>
+                    <button onclick="createAccess({{ seat.machine.id }})"
+                            class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Create Access Link
+                    </button>
+                {% else %}
+                    <span class="px-4 py-2 text-sm text-vagon-500">Machine is {{ seat.machine.friendly_status or seat.machine.status }}...</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Storage Info -->
+        <div class="mt-6 pt-6 border-t border-vagon-200">
+            <h2 class="text-sm font-medium text-vagon-900 mb-4">Storage</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                    <p class="text-xs text-vagon-500">File Storage</p>
+                    <p class="text-sm text-vagon-900">{{ seat.get('file_storage_size') | format_gigabytes }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-vagon-500">Disk Size</p>
+                    <p class="text-sm text-vagon-900">{{ seat.get('disk_size', 'N/A') }} GB</p>
+                </div>
+                <div>
+                    <p class="text-xs text-vagon-500">Remaining Usage</p>
+                    <p class="text-sm text-vagon-900">{{ (seat.remaining_usage or 0) | format_usage_minutes }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Files Section -->
+    <div class="bg-white rounded-lg border border-vagon-200">
+        <div class="p-4 border-b border-vagon-200 flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-medium text-vagon-900">Files</h2>
+                {% if current %}
+                    <p class="text-sm text-vagon-500">{{ current.path or '/' }}</p>
+                {% endif %}
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="showCreateFolderModal()"
+                        class="px-3 py-1.5 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
+                    New Folder
+                </button>
+                <button onclick="showUploadModal()"
+                        class="px-3 py-1.5 text-sm bg-vagon-800 text-white rounded-lg hover:bg-vagon-700">
+                    Upload File
+                </button>
+            </div>
+        </div>
+
+        <!-- Breadcrumb Navigation -->
+        {% if parent_id != 0 and current %}
+        <div class="px-4 py-2 bg-vagon-50 border-b border-vagon-200">
+            <a href="{{ url_for('seat_detail', seat_id=seat.id, parent_id=current.parent_id or 0) }}"
+               class="inline-flex items-center text-sm text-vagon-600 hover:text-vagon-900">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+                Back
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Files List -->
+        <div class="divide-y divide-vagon-200">
+            {% for file in files %}
+            <div class="px-4 py-3 flex items-center justify-between hover:bg-vagon-50">
+                <div class="flex items-center space-x-3">
+                    {% if file.object_type == 'directory' %}
+                        <svg class="w-5 h-5 text-vagon-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
+                        </svg>
+                        <a href="{{ url_for('seat_detail', seat_id=seat.id, parent_id=file.id) }}"
+                           class="text-sm text-vagon-900 hover:text-vagon-600">
+                            {{ file.name }}
+                        </a>
+                    {% else %}
+                        <svg class="w-5 h-5 text-vagon-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span class="text-sm text-vagon-900">{{ file.name }}</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-xs text-vagon-500">{{ file.size | format_bytes }}</span>
+                    <div class="flex space-x-1">
+                        {% if file.object_type == 'file' %}
+                            <button onclick="downloadFile({{ file.id }})"
+                                    class="p-1 text-vagon-400 hover:text-vagon-600">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                            </button>
+                        {% endif %}
+                        <button onclick="deleteFile({{ file.id }}, '{{ file.name }}')"
+                                class="p-1 text-vagon-400 hover:text-red-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="px-4 py-12 text-center text-vagon-500">
+                No files in this directory
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if next_page or page > 1 %}
+        <div class="px-4 py-3 border-t border-vagon-200 flex justify-between items-center">
+            <div>
+                {% if page > 1 %}
+                    <a href="?parent_id={{ parent_id }}&page={{ page - 1 }}"
+                       class="px-3 py-1 text-sm border border-vagon-300 rounded hover:bg-vagon-50">
+                        Previous
+                    </a>
+                {% endif %}
+            </div>
+            <span class="text-sm text-vagon-500">Page {{ page }}</span>
+            <div>
+                {% if next_page %}
+                    <a href="?parent_id={{ parent_id }}&page={{ next_page }}"
+                       class="px-3 py-1 text-sm border border-vagon-300 rounded hover:bg-vagon-50">
+                        Next
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Folder Modal -->
+<div id="createFolderModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-medium text-vagon-900 mb-4">Create New Folder</h3>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm text-vagon-600 mb-1">Folder Name</label>
+                <input type="text" id="folderName"
+                       class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeCreateFolderModal()"
+                        class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
+                    Cancel
+                </button>
+                <button onclick="createFolder()"
+                        class="px-4 py-2 text-sm bg-vagon-800 text-white rounded-lg hover:bg-vagon-700">
+                    Create
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div id="uploadModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-medium text-vagon-900 mb-4">Upload File</h3>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm text-vagon-600 mb-1">Select File</label>
+                <input type="file" id="uploadFile"
+                       class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm">
+            </div>
+            <div id="uploadProgress" class="hidden">
+                <div class="w-full bg-vagon-200 rounded-full h-2">
+                    <div id="uploadProgressBar" class="bg-vagon-800 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="uploadStatus" class="text-sm text-vagon-500 mt-2">Uploading...</p>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeUploadModal()"
+                        class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
+                    Cancel
+                </button>
+                <button onclick="uploadSelectedFile()"
+                        class="px-4 py-2 text-sm bg-vagon-800 text-white rounded-lg hover:bg-vagon-700">
+                    Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Access Link Modal -->
+<div id="accessModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-medium text-vagon-900 mb-4">Machine Access Link</h3>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm text-vagon-600 mb-1">Connection Link</label>
+                <input type="text" id="accessLink" readonly
+                       class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm bg-vagon-50">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="copyAccessLink()"
+                        class="px-4 py-2 text-sm bg-vagon-800 text-white rounded-lg hover:bg-vagon-700">
+                    Copy Link
+                </button>
+                <button onclick="closeAccessModal()"
+                        class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const seatId = {{ seat.id }};
+    const currentParentId = {{ parent_id }};
+    const currentMachineTypeId = {% if seat.machine and seat.machine.machine_type_id %}{{ seat.machine.machine_type_id }}{% else %}null{% endif %};
+
+    // Load available machine types on page load
+    let availableMachineTypes = [];
+    
+    async function loadAvailableMachineTypes() {
+        try {
+            const result = await apiCall(`/api/seats/${seatId}/available-machine-types`);
+            availableMachineTypes = result.machine_types || [];
+            
+            const select = document.getElementById('machineTypeSelect');
+            const loading = document.getElementById('machineTypeLoading');
+            
+            if (availableMachineTypes.length === 0) {
+                select.innerHTML = '<option value="">No machine types available</option>';
+                loading.textContent = '';
+                return;
+            }
+            
+            // Clear loading option
+            select.innerHTML = '';
+            
+            // Add options
+            const currentMachineTypeName = '{{ seat.machine.machine_type if seat.machine and seat.machine.machine_type else "" }}';
+            let selectedFound = false;
+            let currentMachineTypeFriendlyName = null;
+            
+            availableMachineTypes.forEach(mt => {
+                const option = document.createElement('option');
+                option.value = mt.id;
+                const displayName = mt.friendly_name || mt.name || `Machine Type ${mt.id}`;
+                option.textContent = displayName;
+                // Match by ID if available, otherwise by name
+                if (currentMachineTypeId && parseInt(mt.id) === parseInt(currentMachineTypeId)) {
+                    option.selected = true;
+                    selectedFound = true;
+                    currentMachineTypeFriendlyName = mt.friendly_name || mt.name;
+                } else if (!selectedFound && !currentMachineTypeId && currentMachineTypeName && 
+                          (mt.name === currentMachineTypeName || mt.friendly_name === currentMachineTypeName)) {
+                    option.selected = true;
+                    selectedFound = true;
+                    currentMachineTypeFriendlyName = mt.friendly_name || mt.name;
+                }
+                select.appendChild(option);
+            });
+            
+            // If no match found, show current type name as placeholder
+            if (!selectedFound && currentMachineTypeName) {
+                const placeholderOption = document.createElement('option');
+                placeholderOption.value = '';
+                placeholderOption.textContent = `Current: ${currentMachineTypeName}`;
+                placeholderOption.disabled = true;
+                select.insertBefore(placeholderOption, select.firstChild);
+            }
+            
+            loading.textContent = '';
+        } catch (error) {
+            console.error('Error loading machine types:', error);
+            const select = document.getElementById('machineTypeSelect');
+            const loading = document.getElementById('machineTypeLoading');
+            select.innerHTML = '<option value="">Error loading types</option>';
+            loading.textContent = 'Error';
+        }
+    }
+    
+    // Load machine types when page loads
+    {% if seat.machine %}
+    loadAvailableMachineTypes();
+    {% endif %}
+
+    // Change machine type
+    async function changeMachineType(machineId, machineTypeId) {
+        if (!machineTypeId) return;
+        
+        // Check if machine is stopped (extra safety check)
+        const machineStatus = '{{ seat.machine.status if seat.machine else "" }}';
+        if (machineStatus !== 'stopped') {
+            showToast('Machine must be stopped to change type');
+            // Reset dropdown to previous value
+            loadAvailableMachineTypes();
+            return;
+        }
+        
+        if (!confirm('Are you sure you want to change the machine type? This will take effect on the next machine start.')) {
+            // Reset dropdown to previous value
+            loadAvailableMachineTypes();
+            return;
+        }
+        
+        try {
+            await apiCall(`/api/machines/${machineId}/machine-type`, 'POST', {
+                machine_type_id: parseInt(machineTypeId)
+            });
+            showToast('Machine type updated successfully');
+            // Reload page after a short delay to show updated info
+            setTimeout(() => location.reload(), 1500);
+        } catch (error) {
+            showToast('Error: ' + error.message);
+            // Reset dropdown on error
+            loadAvailableMachineTypes();
+        }
+    }
+
+    // Machine actions
+    async function startMachine(machineId) {
+        try {
+            await apiCall(`/api/machines/${machineId}/start`, 'POST');
+            showToast('Machine start initiated');
+            setTimeout(() => location.reload(), 2000);
+        } catch (error) {
+            showToast('Error: ' + error.message);
+        }
+    }
+
+    async function stopMachine(machineId) {
+        if (!confirm('Are you sure you want to stop this machine?')) return;
+
+        try {
+            await apiCall(`/api/machines/${machineId}/stop`, 'POST');
+            showToast('Machine stop initiated');
+            setTimeout(() => location.reload(), 2000);
+        } catch (error) {
+            showToast('Error: ' + error.message);
+        }
+    }
+
+    async function createAccess(machineId) {
+        // Show duration selection modal first
+        const durationMinutes = prompt('Enter access link duration in minutes (e.g., 60 = 1 hour, 30 = 30 minutes):', '60');
+        
+        if (!durationMinutes || isNaN(durationMinutes) || durationMinutes <= 0) {
+            showToast('Please enter a valid duration');
+            return;
+        }
+        
+        // Convert minutes to seconds
+        const expiresInSeconds = parseInt(durationMinutes) * 60;
+        
+        try {
+            const result = await apiCall(`/api/machines/${machineId}/access`, 'POST', {
+                expires_in: expiresInSeconds
+            });
+
+            document.getElementById('accessLink').value = result.connection_link;
+            
+            document.getElementById('accessModal').classList.remove('hidden');
+            document.getElementById('accessModal').classList.add('flex');
+        } catch (error) {
+            showToast('Error: ' + error.message);
+        }
+    }
+
+    function closeAccessModal() {
+        document.getElementById('accessModal').classList.add('hidden');
+        document.getElementById('accessModal').classList.remove('flex');
+    }
+
+    function copyAccessLink() {
+        const input = document.getElementById('accessLink');
+        input.select();
+        document.execCommand('copy');
+        showToast('Link copied to clipboard');
+    }
+
+    // Folder actions
+    function showCreateFolderModal() {
+        document.getElementById('createFolderModal').classList.remove('hidden');
+        document.getElementById('createFolderModal').classList.add('flex');
+        document.getElementById('folderName').focus();
+    }
+
+    function closeCreateFolderModal() {
+        document.getElementById('createFolderModal').classList.add('hidden');
+        document.getElementById('createFolderModal').classList.remove('flex');
+        document.getElementById('folderName').value = '';
+    }
+
+    async function createFolder() {
+        const name = document.getElementById('folderName').value.trim();
+        if (!name) {
+            showToast('Please enter a folder name');
+            return;
+        }
+
+        try {
+            await apiCall('/api/files', 'POST', {
+                name: name,
+                object_type: 'directory',
+                parent_id: currentParentId,
+                seat_id: seatId
+            });
+            showToast('Folder created');
+            closeCreateFolderModal();
+            location.reload();
+        } catch (error) {
+            showToast('Error: ' + error.message);
+        }
+    }
+
+    // File actions
+    function showUploadModal() {
+        document.getElementById('uploadModal').classList.remove('hidden');
+        document.getElementById('uploadModal').classList.add('flex');
+    }
+
+    function closeUploadModal() {
+        document.getElementById('uploadModal').classList.add('hidden');
+        document.getElementById('uploadModal').classList.remove('flex');
+        document.getElementById('uploadFile').value = '';
+        document.getElementById('uploadProgress').classList.add('hidden');
+    }
+
+    async function uploadSelectedFile() {
+        const fileInput = document.getElementById('uploadFile');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            showToast('Please select a file');
+            return;
+        }
+
+        document.getElementById('uploadProgress').classList.remove('hidden');
+        document.getElementById('uploadStatus').textContent = 'Uploading...';
+        document.getElementById('uploadProgressBar').style.width = '10%';
+
+        let result = null;
+        try {
+            // Upload file via backend (handles S3 upload and completion)
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('parent_id', currentParentId);
+            formData.append('seat_id', seatId);
+
+            const response = await fetch('/api/files/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            result = await response.json();
+
+            if (!response.ok) {
+                const clientCode = result.client_code || response.status;
+                const errorMsg = result.error || 'Upload failed';
+                throw new Error(`[${clientCode}] ${errorMsg}`);
+            }
+
+            document.getElementById('uploadProgressBar').style.width = '100%';
+            document.getElementById('uploadStatus').textContent = 'Upload complete!';
+
+            showToast('File uploaded successfully');
+            setTimeout(() => {
+                closeUploadModal();
+                location.reload();
+            }, 1000);
+
+        } catch (error) {
+            showToast('Upload failed: ' + error.message);
+            document.getElementById('uploadStatus').textContent = 'Upload failed';
+        }
+    }
+
+    async function downloadFile(fileId) {
+        try {
+            const result = await apiCall(`/api/files/${fileId}/download`);
+            window.open(result.url, '_blank');
+        } catch (error) {
+            showToast('Error: ' + error.message);
+        }
+    }
+
+    async function deleteFile(fileId, fileName) {
+        if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
+
+        try {
+            await apiCall(`/api/files/${fileId}`, 'DELETE');
+            showToast('File deleted');
+            location.reload();
+        } catch (error) {
+            showToast('Error: ' + error.message);
+        }
+    }
+</script>
+{% endblock %}

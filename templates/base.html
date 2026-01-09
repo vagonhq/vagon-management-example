@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Vagon API Example{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'vagon': {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            300: '#cbd5e1',
+                            400: '#94a3b8',
+                            500: '#64748b',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .status-running { color: #22c55e; }
+        .status-stopped { color: #94a3b8; }
+        .status-starting { color: #eab308; }
+        .status-stopping { color: #f97316; }
+        .status-active { color: #22c55e; }
+        .status-inactive { color: #94a3b8; }
+    </style>
+</head>
+<body class="bg-vagon-50 text-vagon-800 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white border-b border-vagon-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="{{ url_for('index') }}" class="flex items-center space-x-2 text-xl font-semibold text-vagon-900 mt-2">
+                        <img src="{{ url_for('static', filename='logo.png') }}" alt="Vagon Computers Logo" class="h-5 w-auto" onerror="this.style.display='none'">
+                    </a>
+                    <div class="ml-10 flex items-center space-x-4">
+                        <a href="{{ url_for('index') }}"
+                           class="px-3 py-2 text-sm font-medium text-vagon-600 hover:text-vagon-900 {% if request.endpoint == 'index' %}text-vagon-900 border-b-2 border-vagon-900{% endif %}">
+                            Computers
+                        </a>
+                        <a href="{{ url_for('organization_files') }}"
+                           class="px-3 py-2 text-sm font-medium text-vagon-600 hover:text-vagon-900 {% if request.endpoint == 'organization_files' %}text-vagon-900 border-b-2 border-vagon-900{% endif %}">
+                            Shared Files Storage
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+                {% for category, message in messages %}
+                    <div class="p-4 rounded-md mb-2 {% if category == 'error' %}bg-red-50 text-red-800{% else %}bg-green-50 text-green-800{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 hidden">
+        <div class="bg-vagon-800 text-white px-6 py-3 rounded-lg shadow-lg">
+            <span id="toast-message"></span>
+        </div>
+    </div>
+
+    <script>
+        // Toast notification helper
+        function showToast(message, duration = 3000) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), duration);
+        }
+
+        // API helper function
+        async function apiCall(url, method = 'GET', data = null) {
+            const options = {
+                method,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            };
+            if (data) {
+                options.body = JSON.stringify(data);
+            }
+
+            const response = await fetch(url, options);
+            const result = await response.json();
+
+            if (!response.ok) {
+                const clientCode = result.client_code || response.status;
+                const errorMsg = result.error || 'API request failed';
+                throw new Error(`[${clientCode}] ${errorMsg}`);
+            }
+
+            return result;
+        }
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
