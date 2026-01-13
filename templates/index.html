@@ -39,7 +39,7 @@
         <table class="min-w-full divide-y divide-vagon-200">
             <thead class="bg-vagon-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-vagon-500 uppercase tracking-wider">Seat</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-vagon-500 uppercase tracking-wider">Computer</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-vagon-500 uppercase tracking-wider">Status</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-vagon-500 uppercase tracking-wider">Usage</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-vagon-500 uppercase tracking-wider">Performance</th>
@@ -51,9 +51,9 @@
                 <tr class="hover:bg-vagon-50">
                     <td class="px-6 py-4 whitespace-nowrap">
                         <a href="{{ url_for('seat_detail', seat_id=seat.id) }}" class="text-sm font-medium text-vagon-900 hover:text-vagon-600">
-                            {{ seat.name or 'Seat #' ~ seat.id }}
+                            Computer #{{ seat.machine.id }}
                         </a>
-                        <p class="text-xs text-vagon-500">ID: {{ seat.id }}</p>
+                        <p class="text-xs text-vagon-500">Seat ID: {{ seat.id }}</p>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         {% if seat.machine %}
@@ -242,7 +242,8 @@
                 <div id="createMachineSoftwareList" class="border border-vagon-300 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
                     <p class="text-sm text-vagon-400">Loading software...</p>
                 </div>
-                <p class="text-xs text-vagon-400 mt-1">Select software to pre-install on the machine</p>
+                <p class="text-xs text-vagon-400 mt-1">Select software to pre-install on the computer.</p>
+                <p class="text-xs text-vagon-400 mt-1">Computer will be configured on first launch if any software is selected.</p>
             </div>
 
             <!-- Error Message -->
