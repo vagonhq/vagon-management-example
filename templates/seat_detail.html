@@ -84,6 +84,10 @@
                 {% else %}
                     <span class="px-4 py-2 text-sm text-vagon-500">Machine is {{ seat.machine.friendly_status or seat.machine.status }}...</span>
                 {% endif %}
+                <a href="{{ url_for('user_action_logs', organization_machine_id=seat.machine.id if seat.machine else None) }}"
+                   class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
+                    View Activity Logs
+                </a>
             </div>
         </div>
         {% endif %}

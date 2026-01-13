@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Activity Logs - Vagon API Example{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-semibold text-vagon-900">Activity Logs</h1>
+            <p class="mt-1 text-sm text-vagon-500">
+                View recent user and machine actions (last 30 days) or download archived logs (older than 30 days). Use filters to narrow results or jump in from a specific machine.
+            </p>
+        </div>
+    </div>
+
+    <form method="GET" class="bg-white border border-vagon-200 rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+        <div>
+            <label class="block text-xs font-medium text-vagon-600 mb-1">Start date</label>
+            <input type="date"
+                   name="start_date"
+                   value="{{ start_date }}"
+                   class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-vagon-600 mb-1">End date</label>
+            <input type="date"
+                   name="end_date"
+                   value="{{ end_date }}"
+                   class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-vagon-600 mb-1">Action type</label>
+            <input type="text"
+                   name="action_type"
+                   placeholder="e.g. machine_started"
+                   value="{{ filters.action_type }}"
+                   class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-vagon-600 mb-1">User email</label>
+            <input type="email"
+                   name="user_email"
+                   placeholder="user@example.com"
+                   value="{{ filters.user_email }}"
+                   class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-vagon-600 mb-1">Machine ID</label>
+            <input type="number"
+                   name="organization_machine_id"
+                   placeholder="1234"
+                   value="{{ filters.organization_machine_id }}"
+                   class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
+        </div>
+        <div class="md:col-span-2 lg:col-span-5 flex justify-end space-x-2">
+            <a href="{{ url_for('user_action_logs') }}"
+               class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
+                Reset
+            </a>
+            <button type="submit"
+                    class="px-4 py-2 text-sm bg-vagon-800 text-white rounded-lg hover:bg-vagon-700">
+                Apply Filters
+            </button>
+        </div>
+    </form>
+
+    <!-- Recent Logs (Last 30 Days) -->
+    <div class="bg-white border border-vagon-200 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-vagon-200 flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-medium text-vagon-900">Recent Logs</h2>
+                <p class="text-sm text-vagon-500">{{ count }} result{{ count == 1 and '' or 's' }} (last 30 days)</p>
+            </div>
+            <div class="text-xs text-vagon-500">
+                Logs from the last 30 days are shown here. Archived logs (older than 30 days) are available for download below.
+            </div>
+        </div>
+
+        <div class="divide-y divide-vagon-200">
+            {% for log in logs %}
+            <div class="px-4 py-3 hover:bg-vagon-50">
+                <div class="flex flex-wrap items-center justify-between">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm font-medium text-vagon-900">{{ log.action_type }}</span>
+                            {% if log.organization_machine_id %}
+                                <span class="text-xs text-vagon-600">Machine #{{ log.organization_machine_id }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-xs text-vagon-500">
+                            {{ log.created_at }}
+                            {% if log.user_email %} · {{ log.user_email }}{% endif %}
+                        </div>
+                    </div>
+                    <button type="button"
+                            class="text-xs text-vagon-600 hover:text-vagon-900"
+                            onclick="toggleMetadata(this)">
+                        {{ 'Hide' if loop.first else 'Show' }} metadata
+                    </button>
+                </div>
+                <div class="mt-2 bg-vagon-100 rounded-md p-3 text-xs text-vagon-800 metadata {{ 'block' if loop.first else 'hidden' }}">
+                    {% if log.metadata and log.metadata | length > 0 %}
+                        <pre class="whitespace-pre-wrap break-words">{{ log.metadata | tojson(indent=2) }}</pre>
+                    {% else %}
+                        <p class="text-vagon-500 italic">No metadata available</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <div class="px-4 py-12 text-center text-vagon-500">
+                No recent logs found for the selected filters.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Archived Logs (Older than 30 days) -->
+    {% if archived_urls %}
+    <div class="bg-white border border-vagon-200 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-vagon-200">
+            <div>
+                <h2 class="text-lg font-medium text-vagon-900">Archived Logs</h2>
+                <p class="text-sm text-vagon-500">{{ archived_urls | length }} archived file{{ archived_urls | length == 1 and '' or 's' }} available for download</p>
+            </div>
+            <div class="mt-2 text-xs text-vagon-500">
+                These are compressed JSONL files (gzip) containing logs older than 30 days. Download links expire in 1 hour.
+            </div>
+        </div>
+
+        <div class="divide-y divide-vagon-200">
+            {% for url_info in archived_urls %}
+            <div class="px-4 py-3 hover:bg-vagon-50">
+                <div class="flex items-center justify-between">
+                    <div class="space-y-1 flex-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm font-medium text-vagon-900">
+                                {% if url_info.date %}
+                                    Logs for {{ url_info.date }}
+                                {% elif url_info.s3_path %}
+                                    {{ url_info.s3_path.split('/')[-1].replace('.jsonl.gz', '') }}
+                                {% else %}
+                                    Archive File
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="text-xs text-vagon-500">
+                            {% if url_info.s3_path %}
+                                <span class="font-mono">{{ url_info.s3_path }}</span>
+                            {% endif %}
+                            {% if url_info.expires_in %}
+                                {% set minutes = (url_info.expires_in / 60) | int %}
+                                <span class="ml-2">· Link expires in {{ minutes }} minute{{ 's' if minutes != 1 else '' }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if url_info.download_url %}
+                    <a href="{{ url_info.download_url }}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="ml-4 px-3 py-1.5 text-xs bg-vagon-800 text-white rounded-lg hover:bg-vagon-700 inline-flex items-center space-x-1 whitespace-nowrap">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        <span>Download</span>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleMetadata(button) {
+        const metadata = button.closest('.hover\\:bg-vagon-50').querySelector('.metadata');
+        const isHidden = metadata.classList.contains('hidden');
+        if (isHidden) {
+            metadata.classList.remove('hidden');
+            metadata.classList.add('block');
+            button.textContent = 'Hide metadata';
+        } else {
+            metadata.classList.add('hidden');
+            metadata.classList.remove('block');
+            button.textContent = 'Show metadata';
+        }
+    }
+</script>
+{% endblock %}

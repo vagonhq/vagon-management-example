@@ -20,7 +20,7 @@ Usage:
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
@@ -454,6 +454,122 @@ def organization_files():
         parent_id=parent_id,
         query=query,
         capacity=capacity
+    )
+
+def _parse_date_param(param_name: str, default_value: datetime) -> datetime:
+    """
+    Parse an ISO date/datetime string from query params.
+
+    Accepts either full ISO datetime or YYYY-MM-DD. Falls back to default_value.
+    """
+    value = request.args.get(param_name)
+    if not value:
+        return default_value
+
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        try:
+            return datetime.strptime(value, "%Y-%m-%d")
+        except ValueError as exc:
+            raise BadRequest(f"Invalid {param_name} format. Use ISO date or datetime.") from exc
+
+
+@app.route('/logs')
+@handle_api_errors
+def user_action_logs():
+    """
+    Organization activity logs (recent 30 days) with optional filters.
+    Also shows archived log download URLs for dates older than 30 days.
+
+    Uses the /organization-management/v1/user-action-logs endpoint for recent logs
+    and /organization-management/v1/user-action-logs/archived-download-urls for archived logs.
+    """
+    today = datetime.utcnow()
+    default_start = today - timedelta(days=7)
+
+    start_date = _parse_date_param('start_date', default_start)
+    end_date = _parse_date_param('end_date', today)
+
+    if end_date < start_date:
+        raise BadRequest("end_date must be after start_date")
+
+    action_type = request.args.get('action_type') or None
+    user_email = request.args.get('user_email') or None
+    organization_machine_id = request.args.get('organization_machine_id', type=int)
+
+    # Get recent logs (last 30 days)
+    logs_result = api_client.list_user_action_logs(
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+        action_type=action_type,
+        user_email=user_email,
+        organization_machine_id=organization_machine_id
+    )
+
+    # Flatten JSON:API format for template
+    raw_logs = logs_result.get('logs', [])
+    logs = flatten_jsonapi_list(raw_logs)
+    
+    # Ensure metadata is always a dict (not None, Undefined, or missing)
+    for log in logs:
+        # Ensure metadata exists and is a dict
+        if 'metadata' not in log or log.get('metadata') is None:
+            log['metadata'] = {}
+        elif not isinstance(log.get('metadata'), dict):
+            # If metadata is not a dict, wrap it or make it empty
+            log['metadata'] = {}
+        
+        # Convert created_at to readable format if it's a string
+        if 'created_at' in log and isinstance(log['created_at'], str):
+            try:
+                dt = datetime.fromisoformat(log['created_at'].replace('Z', '+00:00'))
+                log['created_at'] = dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+            except (ValueError, AttributeError):
+                pass  # Keep original if parsing fails
+
+    # Check if we need to fetch archived logs (older than 30 days)
+    archived_urls = []
+    retention_cutoff = today - timedelta(days=30)
+    
+    # If end_date is older than 30 days, fetch archived URLs
+    if end_date < retention_cutoff:
+        try:
+            archived_result = api_client.get_archived_user_action_logs_urls(
+                start_date=start_date.date().isoformat(),
+                end_date=end_date.date().isoformat(),
+                expires_in=3600  # 1 hour expiration
+            )
+            archived_urls = archived_result.get('download_urls', [])
+        except VagonAPIError as e:
+            # If archived endpoint fails (e.g., no archived logs), just log and continue
+            logger.warning(f"Could not fetch archived logs: {e.message}")
+            archived_urls = []
+    elif start_date < retention_cutoff:
+        # If start_date is older than 30 days but end_date is not, fetch archived URLs for the old part
+        try:
+            archived_result = api_client.get_archived_user_action_logs_urls(
+                start_date=start_date.date().isoformat(),
+                end_date=retention_cutoff.date().isoformat(),
+                expires_in=3600
+            )
+            archived_urls = archived_result.get('download_urls', [])
+        except VagonAPIError as e:
+            logger.warning(f"Could not fetch archived logs: {e.message}")
+            archived_urls = []
+
+    return render_template(
+        'logs.html',
+        logs=logs,
+        count=logs_result.get('count', len(logs)),
+        start_date=start_date.date(),
+        end_date=end_date.date(),
+        archived_urls=archived_urls,
+        filters={
+            'action_type': action_type or '',
+            'user_email': user_email or '',
+            'organization_machine_id': organization_machine_id or ''
+        }
     )
 
 

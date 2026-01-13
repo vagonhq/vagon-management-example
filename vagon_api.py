@@ -796,6 +796,83 @@ class VagonAPI:
             params=params if params else None
         )
 
+    # =========================================================================
+    # USER ACTION LOGS
+    # =========================================================================
+
+    def list_user_action_logs(
+        self,
+        start_date: str,
+        end_date: str,
+        action_type: Optional[str] = None,
+        user_email: Optional[str] = None,
+        organization_machine_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Fetch recent user action logs (last 30 days) with optional filters.
+
+        Args:
+            start_date: ISO-8601 start datetime (inclusive)
+            end_date: ISO-8601 end datetime (inclusive)
+            action_type: Optional action type filter
+            user_email: Optional user email filter
+            organization_machine_id: Optional machine ID filter
+
+        Returns:
+            Dict containing:
+                - logs: List of log entries
+                - count: Total number of returned logs
+                - start_date: Requested start date
+                - end_date: Requested end date
+        """
+        params: Dict[str, Any] = {
+            "start_date": start_date,
+            "end_date": end_date
+        }
+        if action_type:
+            params["action_type"] = action_type
+        if user_email:
+            params["user_email"] = user_email
+        if organization_machine_id is not None:
+            params["organization_machine_id"] = organization_machine_id
+
+        return self._request(
+            "GET",
+            "/organization-management/v1/user-action-logs",
+            params=params
+        )
+
+    def get_archived_user_action_logs_urls(
+        self,
+        start_date: str,
+        end_date: str,
+        expires_in: int = 600
+    ) -> Dict[str, Any]:
+        """
+        Get presigned S3 URLs for archived user action logs (older than 30 days).
+
+        Args:
+            start_date: ISO-8601 start date (YYYY-MM-DD)
+            end_date: ISO-8601 end date (YYYY-MM-DD)
+            expires_in: URL expiration time in seconds (default 600)
+
+        Returns:
+            Dict containing:
+                - download_urls: List of download URL info
+                - count: Number of URLs
+        """
+        params = {
+            "start_date": start_date,
+            "end_date": end_date,
+            "expires_in": expires_in
+        }
+
+        return self._request(
+            "GET",
+            "/organization-management/v1/user-action-logs/archived-download-urls",
+            params=params
+        )
+
 
 # =============================================================================
 # UTILITY FUNCTIONS
