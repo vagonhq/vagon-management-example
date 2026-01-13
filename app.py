@@ -379,7 +379,8 @@ def index():
         count=result.get('count', 0),
         page=page,
         next_page=result.get('next_page'),
-        query=query
+        query=query,
+        default_plan_id=os.getenv('DEFAULT_PLAN_ID', '')
     )
 
 
@@ -1036,6 +1037,50 @@ def get_seat_files(seat_id):
     logger.info(f"[GET SEAT FILES] Success: seat_id={seat_id}, count={result.get('count', 0)}")
 
     return jsonify(result)
+
+
+@app.route('/api/softwares')
+@handle_api_errors
+def list_softwares():
+    """API endpoint to list available softwares and golden images."""
+    try:
+        result = api_client.list_softwares()
+        # Flatten JSON:API format
+        softwares = flatten_jsonapi_list(result.get('softwares', []))
+        golden_images = flatten_jsonapi_list(result.get('golden_images', []))
+        return jsonify({
+            'softwares': softwares,
+            'golden_images': golden_images
+        })
+    except VagonAPIError as e:
+        logger.error(f"Error fetching softwares: {e.message}")
+        return jsonify({'error': e.message}), e.status_code
+
+
+@app.route('/api/seats/create', methods=['POST'])
+@handle_api_errors
+def create_seat():
+    """API endpoint to create new seats."""
+    try:
+        data = request.get_json()
+        seat_plan_id = data.get('seat_plan_id')
+        quantity = data.get('quantity', 1)
+        software_ids = data.get('software_ids', [])
+        base_image_id = data.get('base_image_id')
+
+        if not seat_plan_id:
+            return jsonify({'error': 'seat_plan_id is required'}), 400
+
+        result = api_client.create_seat(
+            seat_plan_id=seat_plan_id,
+            quantity=quantity,
+            software_ids=software_ids if software_ids else None,
+            base_image_id=base_image_id
+        )
+        return jsonify(result)
+    except VagonAPIError as e:
+        logger.error(f"Error creating seat: {e.message}")
+        return jsonify({'error': e.message}), e.status_code
 
 
 @app.route('/api/seats/<int:seat_id>/available-machine-types')

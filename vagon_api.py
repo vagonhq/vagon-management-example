@@ -842,6 +842,63 @@ class VagonAPI:
             params=params
         )
 
+    def list_softwares(self) -> Dict[str, Any]:
+        """
+        List all available softwares and golden images.
+
+        Returns:
+            Dict containing:
+                - softwares: List of software objects (id, name, size)
+                - golden_images: List of golden image objects (id, name, size)
+
+        Example:
+            >>> result = client.list_softwares()
+            >>> for software in result['softwares']:
+            ...     print(f"{software['name']}: {software['size']} GB")
+        """
+        return self._request("GET", "/organization-management/v1/softwares")
+
+    def create_seat(
+        self,
+        seat_plan_id: int,
+        quantity: int = 1,
+        software_ids: Optional[List[int]] = None,
+        base_image_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Create new seats with balance payment.
+
+        Args:
+            seat_plan_id: The seat plan ID (required)
+            quantity: Number of seats to create (default: 1)
+            software_ids: List of software IDs to pre-install (optional)
+            base_image_id: Base golden image ID (optional, uses default if not provided)
+
+        Returns:
+            Dict containing:
+                - seats: List of created seat objects
+                - count: Number of seats created
+                - silver_image: Silver image object if software_ids or base_image_id provided
+
+        Example:
+            >>> result = client.create_seat(
+            ...     seat_plan_id=1,
+            ...     quantity=2,
+            ...     software_ids=[1, 2, 3]
+            ... )
+            >>> print(f"Created {result['count']} seats")
+        """
+        data = {
+            "seat_plan_id": seat_plan_id,
+            "quantity": quantity
+        }
+        if software_ids:
+            data["software_ids"] = software_ids
+        if base_image_id:
+            data["base_image_id"] = base_image_id
+
+        return self._request("POST", "/organization-management/v1/seats", body=data)
+
     def get_archived_user_action_logs_urls(
         self,
         start_date: str,
