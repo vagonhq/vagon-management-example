@@ -85,6 +85,12 @@ for seat in seats['seats']:
 # Start a machine
 client.start_machine(machine_id=123)
 
+# Stop a machine
+client.stop_machine(machine_id=123)
+
+# Reset a stopped machine (deletes images, terminates instance)
+client.reset_machine(machine_id=123)
+
 # Create access link
 access = client.create_machine_access(machine_id=123, expires_in=3600)
 print(f"Access link: {access['connection_link']}")
@@ -108,6 +114,7 @@ print(f"Used: {capacity['in_use']} / {capacity['total']} bytes")
 ### Machines (JSON API)
 - `POST /api/machines/<id>/start` - Start computer
 - `POST /api/machines/<id>/stop` - Stop computer
+- `POST /api/machines/<id>/reset` - Reset stopped computer (deletes images, terminates instance)
 - `POST /api/machines/<id>/access` - Create access link to running computer
 
 ### Files (JSON API)

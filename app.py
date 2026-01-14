@@ -632,6 +632,31 @@ def stop_machine(machine_id):
         raise
 
 
+@app.route('/api/machines/<int:machine_id>/reset', methods=['POST'])
+@handle_api_errors
+def reset_machine(machine_id):
+    """
+    Reset a stopped machine.
+
+    This demonstrates the reset_machine() API method.
+    
+    Note: The machine must be stopped (not running) to reset it.
+    This will delete all machine images, mark the session as reset,
+    and terminate the EC2 instance if it exists.
+    """
+    logger.info(f"[MACHINE RESET] Resetting machine_id={machine_id}")
+    try:
+        result = api_client.reset_machine(machine_id)
+        logger.info(f"[MACHINE RESET] Success: machine_id={machine_id}, result={result}")
+        return jsonify({'success': True, 'message': 'Machine reset initiated'})
+    except VagonAPIError as e:
+        logger.error(f"[MACHINE RESET] Error: machine_id={machine_id}, client_code={e.client_code}, status={e.status_code}, message={e.message}")
+        raise
+    except Exception as e:
+        logger.error(f"[MACHINE RESET] Unexpected error: machine_id={machine_id}, error={str(e)}")
+        raise
+
+
 @app.route('/api/machines/<int:machine_id>/access', methods=['POST'])
 @handle_api_errors
 def create_access(machine_id):

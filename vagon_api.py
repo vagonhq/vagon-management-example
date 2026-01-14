@@ -474,6 +474,38 @@ class VagonAPI:
             body={"gracefully": True} # It await for any file upload to complete before stopping the machine
         )
 
+    def reset_machine(self, machine_id: int) -> Dict[str, Any]:
+        """
+        Reset a stopped machine.
+
+        This will:
+        - Delete all machine images
+        - Mark active session as reset
+        - Terminate the EC2 instance if it exists
+        - Clear the seat's silver image association
+
+        Note: The machine must be stopped (not running) to reset it.
+
+        Args:
+            machine_id: The machine ID to reset
+
+        Returns:
+            Empty dict on success
+
+        Raises:
+            VagonAPIError: With status codes:
+                - 400: Machine is running (must be stopped first)
+                - 403: Forbidden (member trying to reset another member's machine)
+                - 404: Machine not found
+
+        Example:
+            >>> client.reset_machine(456)
+        """
+        return self._request(
+            "POST",
+            f"/organization-management/v1/machines/{machine_id}/reset"
+        )
+
     def create_machine_access(
         self,
         machine_id: int,
