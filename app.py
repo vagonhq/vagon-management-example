@@ -379,7 +379,8 @@ def index():
         count=result.get('count', 0),
         page=page,
         next_page=result.get('next_page'),
-        query=query
+        query=query,
+        default_plan_id=os.getenv('DEFAULT_PLAN_ID', '')
     )
 
 
@@ -628,6 +629,31 @@ def stop_machine(machine_id):
         return jsonify({'success': True, 'message': 'Machine stop initiated'})
     except Exception as e:
         logger.error(f"[MACHINE STOP] Error: machine_id={machine_id}, error={str(e)}")
+        raise
+
+
+@app.route('/api/machines/<int:machine_id>/reset', methods=['POST'])
+@handle_api_errors
+def reset_machine(machine_id):
+    """
+    Reset a stopped machine.
+
+    This demonstrates the reset_machine() API method.
+    
+    Note: The machine must be stopped (not running) to reset it.
+    This will delete all machine images, mark the session as reset,
+    and terminate the EC2 instance if it exists.
+    """
+    logger.info(f"[MACHINE RESET] Resetting machine_id={machine_id}")
+    try:
+        result = api_client.reset_machine(machine_id)
+        logger.info(f"[MACHINE RESET] Success: machine_id={machine_id}, result={result}")
+        return jsonify({'success': True, 'message': 'Machine reset initiated'})
+    except VagonAPIError as e:
+        logger.error(f"[MACHINE RESET] Error: machine_id={machine_id}, client_code={e.client_code}, status={e.status_code}, message={e.message}")
+        raise
+    except Exception as e:
+        logger.error(f"[MACHINE RESET] Unexpected error: machine_id={machine_id}, error={str(e)}")
         raise
 
 
@@ -1036,6 +1062,65 @@ def get_seat_files(seat_id):
     logger.info(f"[GET SEAT FILES] Success: seat_id={seat_id}, count={result.get('count', 0)}")
 
     return jsonify(result)
+
+
+@app.route('/api/software')
+@handle_api_errors
+def list_software():
+    """API endpoint to list available softwares and golden images."""
+    try:
+        result = api_client.list_softwares()
+        # Flatten JSON:API format
+        software = flatten_jsonapi_list(result.get('software', []))
+        golden_images = flatten_jsonapi_list(result.get('golden_images', []))
+        return jsonify({
+            'softwares': software,  # Keep 'softwares' for frontend compatibility
+            'golden_images': golden_images
+        })
+    except VagonAPIError as e:
+        logger.error(f"Error fetching softwares: {e.message}")
+        return jsonify({'error': e.message}), e.status_code
+
+
+@app.route('/api/seats/create', methods=['POST'])
+@handle_api_errors
+def create_seat():
+    """API endpoint to create new seats."""
+    try:
+        data = request.get_json()
+        seat_plan_id = data.get('seat_plan_id')
+        quantity = data.get('quantity', 1)
+        software_ids = data.get('software_ids', [])
+        base_image_id = data.get('base_image_id')
+
+        if not seat_plan_id:
+            return jsonify({'error': 'seat_plan_id is required'}), 400
+
+        permissions = data.get('permissions')
+        
+        result = api_client.create_seat(
+            seat_plan_id=seat_plan_id,
+            quantity=quantity,
+            software_ids=software_ids if software_ids else None,
+            base_image_id=base_image_id,
+            permissions=permissions if permissions else None
+        )
+        return jsonify(result)
+    except VagonAPIError as e:
+        logger.error(f"Error creating seat: {e.message}")
+        return jsonify({'error': e.message}), e.status_code
+
+
+@app.route('/api/seats/permission-fields')
+@handle_api_errors
+def get_permission_fields():
+    """API endpoint to get permission fields."""
+    try:
+        result = api_client.get_permission_fields()
+        return jsonify(result)
+    except VagonAPIError as e:
+        logger.error(f"Error fetching permission fields: {e.message}")
+        return jsonify({'error': e.message}), e.status_code
 
 
 @app.route('/api/seats/<int:seat_id>/available-machine-types')

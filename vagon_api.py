@@ -474,6 +474,38 @@ class VagonAPI:
             body={"gracefully": True} # It await for any file upload to complete before stopping the machine
         )
 
+    def reset_machine(self, machine_id: int) -> Dict[str, Any]:
+        """
+        Reset a stopped machine.
+
+        This will:
+        - Delete all machine images
+        - Mark active session as reset
+        - Terminate the EC2 instance if it exists
+        - Clear the seat's silver image association
+
+        Note: The machine must be stopped (not running) to reset it.
+
+        Args:
+            machine_id: The machine ID to reset
+
+        Returns:
+            Empty dict on success
+
+        Raises:
+            VagonAPIError: With status codes:
+                - 400: Machine is running (must be stopped first)
+                - 403: Forbidden (member trying to reset another member's machine)
+                - 404: Machine not found
+
+        Example:
+            >>> client.reset_machine(456)
+        """
+        return self._request(
+            "POST",
+            f"/organization-management/v1/machines/{machine_id}/reset"
+        )
+
     def create_machine_access(
         self,
         machine_id: int,
@@ -841,6 +873,86 @@ class VagonAPI:
             "/organization-management/v1/user-action-logs",
             params=params
         )
+
+    def list_softwares(self) -> Dict[str, Any]:
+        """
+        List all available softwares and golden images.
+
+        Returns:
+            Dict containing:
+                - software: List of software objects (id, name, size)
+                - golden_images: List of golden image objects (id, name, size)
+
+        Example:
+            >>> result = client.list_softwares()
+            >>> for software in result['software']:
+            ...     print(f"{software['name']}: {software['size']} GB")
+        """
+        return self._request("GET", "/organization-management/v1/software")
+
+    def create_seat(
+        self,
+        seat_plan_id: int,
+        quantity: int = 1,
+        software_ids: Optional[List[int]] = None,
+        base_image_id: Optional[int] = None,
+        permissions: Optional[Dict[str, bool]] = None
+    ) -> Dict[str, Any]:
+        """
+        Create new seats with balance payment.
+
+        Args:
+            seat_plan_id: The seat plan ID (required)
+            quantity: Number of seats to create (default: 1)
+            software_ids: List of software IDs to pre-install (optional)
+            base_image_id: Base golden image ID (optional, uses default if not provided)
+            permissions: Dict of permission field names to boolean values (optional)
+
+        Returns:
+            Dict containing:
+                - seats: List of created seat objects
+                - count: Number of seats created
+                - silver_image: Silver image object if software_ids or base_image_id provided
+
+        Example:
+            >>> result = client.create_seat(
+            ...     seat_plan_id=1,
+            ...     quantity=2,
+            ...     software_ids=[1, 2, 3],
+            ...     permissions={
+            ...         "screen_recording_enabled": True,
+            ...         "input_recording_enabled": True
+            ...     }
+            ... )
+            >>> print(f"Created {result['count']} seats")
+        """
+        data = {
+            "seat_plan_id": seat_plan_id,
+            "quantity": quantity
+        }
+        if software_ids:
+            data["software_ids"] = software_ids
+        if base_image_id:
+            data["base_image_id"] = base_image_id
+        if permissions:
+            data["permissions"] = permissions
+
+        return self._request("POST", "/organization-management/v1/seats", body=data)
+
+    def get_permission_fields(self) -> Dict[str, Any]:
+        """
+        Get all available permission fields with their types and default values.
+
+        Returns:
+            Dict containing:
+                - permission_fields: List of permission field objects with name, type, and default
+
+        Example:
+            >>> result = client.get_permission_fields()
+            >>> for field in result['permission_fields']:
+            ...     print(f"{field['name']}: {field['default']}")
+        """
+        return self._request("GET", "/organization-management/v1/seats/permission-fields")
 
     def get_archived_user_action_logs_urls(
         self,

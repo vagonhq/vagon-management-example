@@ -5,8 +5,12 @@ This project is a Python Flask project to showcase Vagon Computer APIs and their
 ## Features
 
 - **Computer Management**: List and view all computers with their associated seat information
-- **Computer Control**: Start, stop, and create access links for computers
+- **Computer Control**: Start, stop, reset, and create access links for computers
+- **Machine Configuration**: Change machine type and view available machine types
 - **File Management**: Browse, upload, and download files (organization-wide and computer-specific)
+- **User Action Logs**: View activity logs for machines and users
+- **Software Management**: List available softwares and golden images
+- **Seat Management**: Create new seats with software pre-installation
 - **Clean API Client**: Well-documented Python client for the Vagon API
 
 ## Project Structure
@@ -85,7 +89,19 @@ for seat in seats['seats']:
 # Start a machine
 client.start_machine(machine_id=123)
 
-# Create access link
+# Stop a machine
+client.stop_machine(machine_id=123)
+
+# Reset a stopped machine (deletes images, terminates instance, resets to silver image)
+client.reset_machine(machine_id=123)
+
+# Change machine type
+client.set_machine_type(machine_id=123, machine_type_id=5)
+
+# Get available machine types for a seat
+machine_types = client.get_seat_available_machine_types(seat_id=456)
+
+# Create access link (expires_in in seconds)
 access = client.create_machine_access(machine_id=123, expires_in=3600)
 print(f"Access link: {access['connection_link']}")
 
@@ -97,22 +113,71 @@ for f in files['files']:
 # Get storage capacity
 capacity = client.get_capacity()
 print(f"Used: {capacity['in_use']} / {capacity['total']} bytes")
+
+# View user action logs
+from datetime import datetime, timedelta
+start_date = (datetime.now() - timedelta(days=7)).iso8601()
+end_date = datetime.now().iso8601()
+logs = client.list_user_action_logs(
+    start_date=start_date,
+    end_date=end_date,
+    organization_machine_id=123
+)
+
+# List available softwares
+result = client.list_softwares()
+for software in result['software']:
+    print(f"{software['name']}: {software['size']} GB")
+
+# Create a new seat
+result = client.create_seat(
+    seat_plan_id=1,
+    quantity=2,
+    software_ids=[1, 2, 3]
+)
+print(f"Created {result['count']} seats")
 ```
 
 ## API Endpoints Reference for this Project
 
-### Computers
-- `GET /` - List all computers
+### Web Pages
+- `GET /` - List all computers (seats)
 - `GET /seats/<id>` - Computer details with files
+- `GET /files` - Browse organization-wide shared files
+- `GET /logs` - View user action logs with filters
 
 ### Machines (JSON API)
+- `GET /api/machines/<id>` - Get machine details
 - `POST /api/machines/<id>/start` - Start computer
+  - Optional body: `{"machine_type_id": 5, "region": "dublin"}`
 - `POST /api/machines/<id>/stop` - Stop computer
+- `POST /api/machines/<id>/reset` - Reset stopped computer
+  - Deletes all machine images, terminates instance, resets to silver image if assigned
 - `POST /api/machines/<id>/access` - Create access link to running computer
+  - Body: `{"expires_in": 3600}` (expires_in in seconds)
+- `POST /api/machines/<id>/machine-type` - Change machine type
+  - Body: `{"machine_type_id": 5}`
+
+### Seats (JSON API)
+- `GET /api/seats/<id>/available-machine-types` - Get available machine types for seat
+- `POST /api/seats/create` - Create new seats
+  - Body: `{"seat_plan_id": 1, "quantity": 2, "software_ids": [1,2,3]}`
+- `GET /api/seats/<id>/files` - Get seat-specific files
 
 ### Files (JSON API)
 - `GET /api/files/capacity` - Get storage capacity
+  - Optional query: `?seat_id=123` for seat-specific capacity
 - `POST /api/files` - Create file or directory
+- `POST /api/files/upload` - Upload file (multipart)
 - `GET /api/files/<id>/download` - Get download URL
 - `POST /api/files/<id>/complete` - Complete multipart upload
 - `DELETE /api/files/<id>` - Delete file or directory
+
+### User Action Logs (JSON API)
+- `GET /api/user-action-logs` - Get recent logs (last 30 days)
+  - Query params: `start_date`, `end_date`, `action_type`, `user_email`, `organization_machine_id`
+- `GET /api/user-action-logs/archived-download-urls` - Get archived logs (older than 30 days)
+  - Query params: `start_date`, `end_date`, `expires_in`
+
+### Software Management (JSON API)
+- `GET /api/software` - List available softwares and golden images

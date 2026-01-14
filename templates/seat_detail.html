@@ -43,10 +43,6 @@
                     </span>
                 </div>
                 <div>
-                    <p class="text-xs text-vagon-500">Region</p>
-                    <p class="text-sm text-vagon-900">{{ seat.machine.region }}</p>
-                </div>
-                <div>
                     <p class="text-xs text-vagon-500">Type</p>
                     <div class="flex items-center space-x-2">
                         <select id="machineTypeSelect" 
@@ -71,6 +67,10 @@
                     <button onclick="startMachine({{ seat.machine.id }})"
                             class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
                         Start Machine
+                    </button>
+                    <button onclick="resetMachine({{ seat.machine.id }})"
+                            class="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+                        Reset Machine
                     </button>
                 {% elif seat.machine.status == 'running' %}
                     <button onclick="stopMachine({{ seat.machine.id }})"
@@ -427,21 +427,32 @@
         }
     }
 
+    async function resetMachine(machineId) {
+        if (!confirm('Are you sure you want to reset this machine? This will delete all machine images, terminate the instance, and clear the silver image association. This action cannot be undone.')) return;
+
+        try {
+            await apiCall(`/api/machines/${machineId}/reset`, 'POST');
+            showToast('Machine reset initiated');
+            setTimeout(() => location.reload(), 2000);
+        } catch (error) {
+            showToast('Error: ' + error.message);
+        }
+    }
+
     async function createAccess(machineId) {
         // Show duration selection modal first
-        const durationMinutes = prompt('Enter access link duration in minutes (e.g., 60 = 1 hour, 30 = 30 minutes):', '60');
+        // User enters minutes, value goes directly to API as seconds
+        const durationMinutes = prompt('Enter access link duration in minutes (e.g., 60 = 60 minutes):', '60');
         
         if (!durationMinutes || isNaN(durationMinutes) || durationMinutes <= 0) {
             showToast('Please enter a valid duration');
             return;
         }
         
-        // Convert minutes to seconds
-        const expiresInSeconds = parseInt(durationMinutes) * 60;
         
         try {
             const result = await apiCall(`/api/machines/${machineId}/access`, 'POST', {
-                expires_in: expiresInSeconds
+                expires_in: durationMinutes
             });
 
             document.getElementById('accessLink').value = result.connection_link;
