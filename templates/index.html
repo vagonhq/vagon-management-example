@@ -66,10 +66,7 @@
                         {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <p class="text-sm text-vagon-900 usage-display" 
-                           data-seat-id="{{ seat.id }}"
-                           data-remaining-usage="{{ seat.remaining_usage or 0 }}"
-                           data-machine-type="{{ seat.machine.machine_type if seat.machine and seat.machine.machine_type else '' }}">
+                        <p class="text-sm text-vagon-900">
                             {{ (seat.remaining_usage or 0) | format_usage_with_machine_type(seat.machine.machine_type if seat.machine and seat.machine.machine_type else None) }}
                         </p>
                     </td>
@@ -310,11 +307,11 @@
         }
         
         // Convert minutes to seconds
-        const expiresInSeconds = parseInt(durationMinutes) * 60;
+        const minutes = parseInt(durationMinutes);
         
         try {
             const result = await apiCall(`/api/machines/${machineId}/access`, 'POST', {
-                expires_in: expiresInSeconds
+                expires_in: durationMinutes
             });
 
             document.getElementById('accessLink').value = result.connection_link;
@@ -519,83 +516,6 @@
         errorMessage.textContent = message;
         errorDiv.classList.remove('hidden');
     }
-
-    // Update usage displays with friendly machine type names
-    async function updateUsageDisplays() {
-        const usageDisplays = document.querySelectorAll('.usage-display');
-        const seatIds = Array.from(usageDisplays).map(el => el.getAttribute('data-seat-id'));
-        
-        // Load machine types for all seats
-        const machineTypesMap = new Map();
-        for (const seatId of seatIds) {
-            try {
-                const result = await apiCall(`/api/seats/${seatId}/available-machine-types`);
-                const machineTypes = result.machine_types || [];
-                machineTypesMap.set(seatId, machineTypes);
-            } catch (error) {
-                console.error(`Error loading machine types for seat ${seatId}:`, error);
-            }
-        }
-        
-        // Update each usage display
-        usageDisplays.forEach(display => {
-            const seatId = display.getAttribute('data-seat-id');
-            const remainingUsage = parseInt(display.getAttribute('data-remaining-usage') || 0);
-            const machineType = display.getAttribute('data-machine-type');
-            const machineTypes = machineTypesMap.get(seatId) || [];
-            
-            // Find friendly name for current machine type
-            let friendlyName = machineType;
-            for (const mt of machineTypes) {
-                if (mt.name === machineType || mt.friendly_name === machineType) {
-                    friendlyName = mt.friendly_name || mt.name;
-                    break;
-                }
-            }
-            
-            // Format the usage
-            const hours = Math.floor(remainingUsage / 60);
-            const minutes = remainingUsage % 60;
-            let formattedTime = '';
-            
-            if (hours === 0) {
-                if (minutes === 0) {
-                    formattedTime = '0 hours 0 minutes';
-                } else if (minutes === 1) {
-                    formattedTime = '0 hours 1 minute';
-                } else {
-                    formattedTime = `0 hours ${minutes} minutes`;
-                }
-            } else {
-                if (minutes === 0) {
-                    if (hours === 1) {
-                        formattedTime = '1 hour 0 minutes';
-                    } else {
-                        formattedTime = `${hours} hours 0 minutes`;
-                    }
-                } else {
-                    if (hours === 1) {
-                        if (minutes === 1) {
-                            formattedTime = '1 hour 1 minute';
-                        } else {
-                            formattedTime = `1 hour ${minutes} minutes`;
-                        }
-                    } else {
-                        if (minutes === 1) {
-                            formattedTime = `${hours} hours 1 minute`;
-                        } else {
-                            formattedTime = `${hours} hours ${minutes} minutes`;
-                        }
-                    }
-                }
-            }
-            
-            display.textContent = `${formattedTime} of ${friendlyName} usage`;
-        });
-    }
-    
-    // Update usage displays on page load
-    updateUsageDisplays();
 
     // Performance modal state
     let currentPerformanceSeatId = null;
