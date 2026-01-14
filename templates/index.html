@@ -243,6 +243,15 @@
                 <p class="text-xs text-vagon-400 mt-1">Computer will be configured on first launch if any software is selected.</p>
             </div>
 
+            <!-- Permissions -->
+            <div>
+                <label class="block text-sm text-vagon-600 mb-1">Permissions (Optional)</label>
+                <div id="createMachinePermissionsList" class="border border-vagon-300 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                    <p class="text-sm text-vagon-400">Loading permissions...</p>
+                </div>
+                <p class="text-xs text-vagon-400 mt-1">Configure permission settings for the computer.</p>
+            </div>
+
             <!-- Error Message -->
             <div id="createMachineError" class="hidden bg-red-50 border border-red-200 rounded-lg p-3">
                 <p class="text-sm text-red-600" id="createMachineErrorMessage"></p>
@@ -341,6 +350,7 @@
 
     let softwaresData = null;
     let goldenImagesData = null;
+    let permissionFieldsData = null;
 
     async function openCreateMachineModal() {
         const modal = document.getElementById('createMachineModal');
@@ -355,12 +365,18 @@
         document.getElementById('createMachineSuccess').classList.add('hidden');
         document.getElementById('createMachineLoading').classList.add('hidden');
 
-        // Load softwares and golden images if not already loaded
+        // Load softwares, golden images, and permission fields
         if (!softwaresData || !goldenImagesData) {
             await loadSoftwaresAndImages();
         } else {
             populateSoftwareList();
             populateBaseImageSelect();
+        }
+
+        if (!permissionFieldsData) {
+            await loadPermissionFields();
+        } else {
+            populatePermissionList();
         }
     }
 
@@ -368,6 +384,11 @@
         const modal = document.getElementById('createMachineModal');
         modal.classList.add('hidden');
         modal.classList.remove('flex');
+        
+        // Reset permission checkboxes to defaults
+        if (permissionFieldsData) {
+            populatePermissionList();
+        }
     }
 
     async function loadSoftwaresAndImages() {
@@ -441,6 +462,66 @@
         }
     }
 
+    async function loadPermissionFields() {
+        const permissionsList = document.getElementById('createMachinePermissionsList');
+
+        try {
+            permissionsList.innerHTML = '<p class="text-sm text-vagon-400">Loading permissions...</p>';
+
+            const response = await fetch('/api/seats/permission-fields');
+            if (!response.ok) {
+                throw new Error('Failed to load permission fields');
+            }
+
+            const data = await response.json();
+            permissionFieldsData = data.permission_fields || [];
+
+            populatePermissionList();
+        } catch (error) {
+            console.error('Error loading permission fields:', error);
+            permissionsList.innerHTML = '<p class="text-sm text-red-600">Error loading permissions. Please try again.</p>';
+        }
+    }
+
+    function populatePermissionList() {
+        const permissionsList = document.getElementById('createMachinePermissionsList');
+        
+        if (!permissionFieldsData || permissionFieldsData.length === 0) {
+            permissionsList.innerHTML = '<p class="text-sm text-vagon-400">No permissions available</p>';
+            return;
+        }
+
+        permissionsList.innerHTML = '';
+        permissionFieldsData.forEach(field => {
+            const permissionItem = document.createElement('div');
+            permissionItem.className = 'flex items-center space-x-2';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `permission-${field.name}`;
+            checkbox.name = `permission-${field.name}`;
+            checkbox.value = field.name;
+            checkbox.checked = field.default;
+            checkbox.className = 'rounded border-vagon-300 text-vagon-600 focus:ring-vagon-500';
+
+            const label = document.createElement('label');
+            label.htmlFor = `permission-${field.name}`;
+            label.className = 'text-sm text-vagon-700 cursor-pointer flex-1';
+            
+            // Format field name for display
+            const displayName = field.name
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, l => l.toUpperCase())
+                .replace('Vagon', 'Vagon');
+            
+            label.innerHTML = `${displayName} <span class="text-vagon-400 text-xs">(default: ${field.default ? 'enabled' : 'disabled'})</span>`;
+
+            permissionItem.appendChild(checkbox);
+            permissionItem.appendChild(label);
+            permissionsList.appendChild(permissionItem);
+        });
+    }
+
     async function createMachine() {
         const seatPlanId = document.getElementById('createMachineSeatPlanId').value;
         const quantity = parseInt(document.getElementById('createMachineQuantity').value) || 1;
@@ -449,6 +530,13 @@
         // Get selected software IDs
         const softwareCheckboxes = document.querySelectorAll('#createMachineSoftwareList input[type="checkbox"]:checked');
         const softwareIds = Array.from(softwareCheckboxes).map(cb => parseInt(cb.value));
+
+        // Get permission values
+        const permissionCheckboxes = document.querySelectorAll('#createMachinePermissionsList input[type="checkbox"]');
+        const permissions = {};
+        permissionCheckboxes.forEach(checkbox => {
+            permissions[checkbox.value] = checkbox.checked;
+        });
 
         // Validation
         if (!seatPlanId) {
@@ -474,6 +562,10 @@
 
             if (softwareIds.length > 0) {
                 payload.software_ids = softwareIds;
+            }
+
+            if (Object.keys(permissions).length > 0) {
+                payload.permissions = permissions;
             }
 
             const response = await fetch('/api/seats/create', {

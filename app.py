@@ -1096,15 +1096,30 @@ def create_seat():
         if not seat_plan_id:
             return jsonify({'error': 'seat_plan_id is required'}), 400
 
+        permissions = data.get('permissions')
+        
         result = api_client.create_seat(
             seat_plan_id=seat_plan_id,
             quantity=quantity,
             software_ids=software_ids if software_ids else None,
-            base_image_id=base_image_id
+            base_image_id=base_image_id,
+            permissions=permissions if permissions else None
         )
         return jsonify(result)
     except VagonAPIError as e:
         logger.error(f"Error creating seat: {e.message}")
+        return jsonify({'error': e.message}), e.status_code
+
+
+@app.route('/api/seats/permission-fields')
+@handle_api_errors
+def get_permission_fields():
+    """API endpoint to get permission fields."""
+    try:
+        result = api_client.get_permission_fields()
+        return jsonify(result)
+    except VagonAPIError as e:
+        logger.error(f"Error fetching permission fields: {e.message}")
         return jsonify({'error': e.message}), e.status_code
 
 

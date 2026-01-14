@@ -895,7 +895,8 @@ class VagonAPI:
         seat_plan_id: int,
         quantity: int = 1,
         software_ids: Optional[List[int]] = None,
-        base_image_id: Optional[int] = None
+        base_image_id: Optional[int] = None,
+        permissions: Optional[Dict[str, bool]] = None
     ) -> Dict[str, Any]:
         """
         Create new seats with balance payment.
@@ -905,6 +906,7 @@ class VagonAPI:
             quantity: Number of seats to create (default: 1)
             software_ids: List of software IDs to pre-install (optional)
             base_image_id: Base golden image ID (optional, uses default if not provided)
+            permissions: Dict of permission field names to boolean values (optional)
 
         Returns:
             Dict containing:
@@ -916,7 +918,11 @@ class VagonAPI:
             >>> result = client.create_seat(
             ...     seat_plan_id=1,
             ...     quantity=2,
-            ...     software_ids=[1, 2, 3]
+            ...     software_ids=[1, 2, 3],
+            ...     permissions={
+            ...         "screen_recording_enabled": True,
+            ...         "input_recording_enabled": True
+            ...     }
             ... )
             >>> print(f"Created {result['count']} seats")
         """
@@ -928,8 +934,25 @@ class VagonAPI:
             data["software_ids"] = software_ids
         if base_image_id:
             data["base_image_id"] = base_image_id
+        if permissions:
+            data["permissions"] = permissions
 
         return self._request("POST", "/organization-management/v1/seats", body=data)
+
+    def get_permission_fields(self) -> Dict[str, Any]:
+        """
+        Get all available permission fields with their types and default values.
+
+        Returns:
+            Dict containing:
+                - permission_fields: List of permission field objects with name, type, and default
+
+        Example:
+            >>> result = client.get_permission_fields()
+            >>> for field in result['permission_fields']:
+            ...     print(f"{field['name']}: {field['default']}")
+        """
+        return self._request("GET", "/organization-management/v1/seats/permission-fields")
 
     def get_archived_user_action_logs_urls(
         self,
