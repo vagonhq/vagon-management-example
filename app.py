@@ -1064,17 +1064,17 @@ def get_seat_files(seat_id):
     return jsonify(result)
 
 
-@app.route('/api/softwares')
+@app.route('/api/software')
 @handle_api_errors
-def list_softwares():
+def list_software():
     """API endpoint to list available softwares and golden images."""
     try:
         result = api_client.list_softwares()
         # Flatten JSON:API format
-        softwares = flatten_jsonapi_list(result.get('softwares', []))
+        software = flatten_jsonapi_list(result.get('software', []))
         golden_images = flatten_jsonapi_list(result.get('golden_images', []))
         return jsonify({
-            'softwares': softwares,
+            'softwares': software,  # Keep 'softwares' for frontend compatibility
             'golden_images': golden_images
         })
     except VagonAPIError as e:

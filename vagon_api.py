@@ -880,15 +880,15 @@ class VagonAPI:
 
         Returns:
             Dict containing:
-                - softwares: List of software objects (id, name, size)
+                - software: List of software objects (id, name, size)
                 - golden_images: List of golden image objects (id, name, size)
 
         Example:
             >>> result = client.list_softwares()
-            >>> for software in result['softwares']:
+            >>> for software in result['software']:
             ...     print(f"{software['name']}: {software['size']} GB")
         """
-        return self._request("GET", "/organization-management/v1/softwares")
+        return self._request("GET", "/organization-management/v1/software")
 
     def create_seat(
         self,

@@ -125,8 +125,8 @@ logs = client.list_user_action_logs(
 )
 
 # List available softwares
-softwares = client.list_softwares()
-for software in softwares['softwares']:
+result = client.list_softwares()
+for software in result['software']:
     print(f"{software['name']}: {software['size']} GB")
 
 # Create a new seat
@@ -180,4 +180,4 @@ print(f"Created {result['count']} seats")
   - Query params: `start_date`, `end_date`, `expires_in`
 
 ### Software Management (JSON API)
-- `GET /api/softwares` - List available softwares and golden images
+- `GET /api/software` - List available softwares and golden images

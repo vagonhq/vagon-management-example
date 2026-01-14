@@ -399,13 +399,13 @@
             softwareList.innerHTML = '<p class="text-sm text-vagon-400">Loading software...</p>';
             baseImageSelect.innerHTML = '<option value="">Loading...</option>';
 
-            const response = await fetch('/api/softwares');
+            const response = await fetch('/api/software');
             if (!response.ok) {
                 throw new Error('Failed to load softwares');
             }
 
             const data = await response.json();
-            softwaresData = data.softwares || [];
+            softwaresData = data.softwares || [];  // Frontend uses 'softwares' key (app.py maintains compatibility)
             goldenImagesData = data.golden_images || [];
 
             populateSoftwareList();
