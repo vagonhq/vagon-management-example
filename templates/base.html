@@ -28,12 +28,12 @@
         }
     </script>
     <style>
-        .status-running { color: #22c55e; }
-        .status-stopped { color: #94a3b8; }
-        .status-starting { color: #eab308; }
-        .status-stopping { color: #f97316; }
+        .status-ready { color: #22c55e; }
+        .status-off { color: #94a3b8; }
+        .status-turning_on { color: #eab308; }
+        .status-turning_off { color: #f97316; }
         .status-active { color: #22c55e; }
-        .status-inactive { color: #94a3b8; }
+        .status-warming_up { color: #eab308; }
     </style>
 </head>
 <body class="bg-vagon-50 text-vagon-800 min-h-screen">
@@ -53,6 +53,10 @@
                         <a href="{{ url_for('organization_files') }}"
                            class="px-3 py-2 text-sm font-medium text-vagon-600 hover:text-vagon-900 {% if request.endpoint == 'organization_files' %}text-vagon-900 border-b-2 border-vagon-900{% endif %}">
                             Shared Files Storage
+                        </a>
+                        <a href="{{ url_for('images') }}"
+                           class="px-3 py-2 text-sm font-medium text-vagon-600 hover:text-vagon-900 {% if request.endpoint == 'images' %}text-vagon-900 border-b-2 border-vagon-900{% endif %}">
+                            Images
                         </a>
                         <a href="{{ url_for('user_action_logs') }}"
                            class="px-3 py-2 text-sm font-medium text-vagon-600 hover:text-vagon-900 {% if request.endpoint == 'user_action_logs' %}text-vagon-900 border-b-2 border-vagon-900{% endif %}">

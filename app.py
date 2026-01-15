@@ -2,14 +2,14 @@
 Vagon Organization Management API - Example Flask Application
 
 This Flask application demonstrates how to use the Vagon Organization
-Management External API. It provides a web interface for managing seats,
-machines, and files.
+Management External API. It provides a web interface for managing machines
+and files.
 
 Features:
-    - List and view seats with associated machines
+    - List and view machines
     - Start/Stop machines
     - Create temporary machine access links
-    - Browse and upload files (organization and seat-specific)
+    - Browse and upload files (organization and machine-specific)
 
 Usage:
     1. Copy .env.example to .env and fill in your API credentials
@@ -359,23 +359,23 @@ def format_usage_with_machine_type_filter(minutes, machine_type_name=None):
 @handle_api_errors
 def index():
     """
-    Home page - Display list of all seats.
+    Home page - Display list of all machines.
 
-    This demonstrates the list_seats() API method.
+    This demonstrates the list_machines() API method.
     API returns JSON:API format which we flatten for easier template usage.
     """
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     query = request.args.get('q', None)
 
-    result = api_client.list_seats(page=page, per_page=per_page, query=query)
+    result = api_client.list_machines(page=page, per_page=per_page, query=query)
 
     # Flatten JSON:API format for template
-    seats = flatten_jsonapi_list(result.get('seats', []))
+    machines = flatten_jsonapi_list(result.get('machines', []))
 
     return render_template(
         'index.html',
-        seats=seats,
+        machines=machines,
         count=result.get('count', 0),
         page=page,
         next_page=result.get('next_page'),
@@ -384,33 +384,37 @@ def index():
     )
 
 
-@app.route('/seats/<int:seat_id>')
+@app.route('/machines/<int:machine_id>')
 @handle_api_errors
-def seat_detail(seat_id):
+def machine_detail(machine_id):
     """
-    Seat detail page - Show seat info and files.
+    Machine detail page - Show machine info and files.
 
-    This demonstrates get_seat() and get_seat_files() API methods.
+    This demonstrates get_machine() and get_machine_files() API methods.
     API returns JSON:API format which we flatten for easier template usage.
     """
-    seat_response = api_client.get_seat(seat_id)
+    machine_response = api_client.get_machine(machine_id)
+    machine = flatten_jsonapi_resource(machine_response)
+    
+    if not machine:
+        return render_template('error.html', error="Machine not found"), 404
+    
     parent_id = request.args.get('parent_id', 0, type=int)
     page = request.args.get('page', 1, type=int)
 
-    files_result = api_client.get_seat_files(
-        seat_id=seat_id,
+    files_result = api_client.get_machine_files(
+        machine_id=machine_id,
         parent_id=parent_id,
         page=page
     )
 
     # Flatten JSON:API format for template
-    seat = flatten_jsonapi_resource(seat_response)
     files = flatten_jsonapi_list(files_result.get('files', []))
     current = flatten_jsonapi_resource(files_result.get('current'))
 
     return render_template(
-        'seat_detail.html',
-        seat=seat,
+        'machine_detail.html',
+        machine=machine,
         files=files,
         current=current,
         count=files_result.get('count', 0),
@@ -474,6 +478,58 @@ def _parse_date_param(param_name: str, default_value: datetime) -> datetime:
             return datetime.strptime(value, "%Y-%m-%d")
         except ValueError as exc:
             raise BadRequest(f"Invalid {param_name} format. Use ISO date or datetime.") from exc
+
+
+@app.route('/images')
+@handle_api_errors
+def images():
+    """
+    Images page - Display list of all images (templates).
+
+    This demonstrates the list_images() API method.
+    API returns JSON:API format which we flatten for easier template usage.
+    """
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    query = request.args.get('q', None)
+
+    result = api_client.list_images(page=page, per_page=per_page, query=query)
+
+    # Flatten JSON:API format for template
+    images_list = flatten_jsonapi_list(result.get('images', []))
+    
+    # Post-process images to fix enum values and format dates
+    for image in images_list:
+        # Convert source enum (0=seat, 1=pre_installation) to string
+        source_map = {0: 'seat', 1: 'pre_installation'}
+        if 'source' in image and isinstance(image['source'], int):
+            image['source'] = source_map.get(image['source'], 'unknown')
+        
+        # Format created_at date
+        if 'created_at' in image and image['created_at']:
+            try:
+                # Parse ISO format date and format it nicely
+                from datetime import datetime
+                dt = datetime.fromisoformat(image['created_at'].replace('Z', '+00:00'))
+                image['created_at'] = dt.strftime('%Y-%m-%d %H:%M')
+            except (ValueError, AttributeError):
+                # If parsing fails, try to extract date part
+                if isinstance(image['created_at'], str) and len(image['created_at']) >= 10:
+                    image['created_at'] = image['created_at'][:10]
+
+    # Get machines for assign modal
+    machines_result = api_client.list_machines(page=1, per_page=100)
+    machines = flatten_jsonapi_list(machines_result.get('machines', []))
+
+    return render_template(
+        'images.html',
+        images=images_list,
+        count=result.get('count', 0),
+        page=page,
+        next_page=result.get('next_page'),
+        query=query,
+        machines=machines
+    )
 
 
 @app.route('/logs')
@@ -577,6 +633,31 @@ def user_action_logs():
 # =============================================================================
 # MACHINE API ROUTES
 # =============================================================================
+
+@app.route('/api/machines', methods=['GET'])
+@handle_api_errors
+def api_list_machines():
+    """
+    API endpoint to list machines (for use in modals and AJAX calls).
+    
+    Returns JSON with machines list in flattened format.
+    """
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    query = request.args.get('q', None)
+
+    result = api_client.list_machines(page=page, per_page=per_page, query=query)
+
+    # Flatten JSON:API format for template
+    machines = flatten_jsonapi_list(result.get('machines', []))
+
+    return jsonify({
+        'machines': machines,
+        'count': result.get('count', 0),
+        'page': result.get('page', page),
+        'next_page': result.get('next_page')
+    })
+
 
 @app.route('/api/machines/<int:machine_id>/start', methods=['POST'])
 @handle_api_errors
@@ -783,7 +864,7 @@ def create_file():
             "name": "New Folder",
             "object_type": "directory",
             "parent_id": 0,
-            "seat_id": 123  // optional
+            "machine_id": 123  // optional
         }
     """
     logger.info(f"[CREATE FILE/DIR] Request received")
@@ -803,7 +884,7 @@ def create_file():
     result = api_client.create_directory(
         name=data['name'],
         parent_id=data.get('parent_id', 0),
-        seat_id=data.get('seat_id')
+        machine_id=data.get('machine_id')
     )
     logger.info(f"[CREATE FILE/DIR] Success: result={result}")
 
@@ -828,7 +909,7 @@ def upload_file():
     Form data:
         - file: The file to upload
         - parent_id: Parent directory ID (default: 0 for root)
-        - seat_id: Seat ID for seat-specific storage (optional)
+        - machine_id: Machine ID for machine-specific storage (optional)
     """
     import requests as http_requests
 
@@ -846,9 +927,9 @@ def upload_file():
 
     # Get form parameters
     parent_id = request.form.get('parent_id', 0, type=int)
-    seat_id = request.form.get('seat_id', type=int)
+    machine_id = request.form.get('machine_id', type=int)
 
-    logger.info(f"[FILE UPLOAD] Starting upload: filename={file.filename}, parent_id={parent_id}, seat_id={seat_id}")
+    logger.info(f"[FILE UPLOAD] Starting upload: filename={file.filename}, parent_id={parent_id}, machine_id={machine_id}")
 
     # Read file content
     file_content = file.read()
@@ -864,7 +945,7 @@ def upload_file():
             parent_id=parent_id,
             content_type=content_type,
             size=file_size,
-            seat_id=seat_id
+            machine_id=machine_id
         )
         logger.info(f"[FILE UPLOAD] Create file result: {create_result}")
     except VagonAPIError as e:
@@ -1031,35 +1112,35 @@ def get_capacity():
 
     This demonstrates the get_capacity() API method.
     """
-    seat_id = request.args.get('seat_id', type=int)
-    logger.info(f"[GET CAPACITY] Requesting capacity, seat_id={seat_id}")
-    result = api_client.get_capacity(seat_id=seat_id)
-    logger.info(f"[GET CAPACITY] Success: seat_id={seat_id}")
+    machine_id = request.args.get('machine_id', type=int)
+    logger.info(f"[GET CAPACITY] Requesting capacity, machine_id={machine_id}")
+    result = api_client.get_capacity(machine_id=machine_id)
+    logger.info(f"[GET CAPACITY] Success: machine_id={machine_id}")
     return jsonify(result)
 
 
 # =============================================================================
-# SEAT FILES API ROUTES
+# MACHINE FILES API ROUTES
 # =============================================================================
 
-@app.route('/api/seats/<int:seat_id>/files')
+@app.route('/api/machines/<int:machine_id>/files')
 @handle_api_errors
-def get_seat_files(seat_id):
+def get_machine_files(machine_id):
     """
-    Get seat files.
+    Get machine files.
 
-    This demonstrates the get_seat_files() API method.
+    This demonstrates the get_machine_files() API method.
     """
     parent_id = request.args.get('parent_id', 0, type=int)
     page = request.args.get('page', 1, type=int)
-    logger.info(f"[GET SEAT FILES] seat_id={seat_id}, parent_id={parent_id}, page={page}")
+    logger.info(f"[GET MACHINE FILES] machine_id={machine_id}, parent_id={parent_id}, page={page}")
 
-    result = api_client.get_seat_files(
-        seat_id=seat_id,
+    result = api_client.get_machine_files(
+        machine_id=machine_id,
         parent_id=parent_id,
         page=page
     )
-    logger.info(f"[GET SEAT FILES] Success: seat_id={seat_id}, count={result.get('count', 0)}")
+    logger.info(f"[GET MACHINE FILES] Success: machine_id={machine_id}, count={result.get('count', 0)}")
 
     return jsonify(result)
 
@@ -1072,34 +1153,34 @@ def list_software():
         result = api_client.list_softwares()
         # Flatten JSON:API format
         software = flatten_jsonapi_list(result.get('software', []))
-        golden_images = flatten_jsonapi_list(result.get('golden_images', []))
+        base_images = flatten_jsonapi_list(result.get('base_images', []))
         return jsonify({
             'softwares': software,  # Keep 'softwares' for frontend compatibility
-            'golden_images': golden_images
+            'base_images': base_images
         })
     except VagonAPIError as e:
         logger.error(f"Error fetching softwares: {e.message}")
         return jsonify({'error': e.message}), e.status_code
 
 
-@app.route('/api/seats/create', methods=['POST'])
+@app.route('/api/machines/create', methods=['POST'])
 @handle_api_errors
-def create_seat():
-    """API endpoint to create new seats."""
+def create_machine():
+    """API endpoint to create new machines."""
     try:
         data = request.get_json()
-        seat_plan_id = data.get('seat_plan_id')
+        plan_id = data.get('plan_id') or data.get('seat_plan_id')  # Support both for backward compatibility
         quantity = data.get('quantity', 1)
         software_ids = data.get('software_ids', [])
         base_image_id = data.get('base_image_id')
 
-        if not seat_plan_id:
-            return jsonify({'error': 'seat_plan_id is required'}), 400
+        if not plan_id:
+            return jsonify({'error': 'plan_id is required'}), 400
 
         permissions = data.get('permissions')
         
-        result = api_client.create_seat(
-            seat_plan_id=seat_plan_id,
+        result = api_client.create_machine(
+            plan_id=plan_id,
             quantity=quantity,
             software_ids=software_ids if software_ids else None,
             base_image_id=base_image_id,
@@ -1107,11 +1188,11 @@ def create_seat():
         )
         return jsonify(result)
     except VagonAPIError as e:
-        logger.error(f"Error creating seat: {e.message}")
+        logger.error(f"Error creating machine: {e.message}")
         return jsonify({'error': e.message}), e.status_code
 
 
-@app.route('/api/seats/permission-fields')
+@app.route('/api/machines/permission-fields')
 @handle_api_errors
 def get_permission_fields():
     """API endpoint to get permission fields."""
@@ -1123,25 +1204,199 @@ def get_permission_fields():
         return jsonify({'error': e.message}), e.status_code
 
 
-@app.route('/api/seats/<int:seat_id>/available-machine-types')
+@app.route('/api/machines/<int:machine_id>/available-machine-types')
 @handle_api_errors
-def get_seat_available_machine_types(seat_id):
+def get_machine_available_machine_types(machine_id):
     """
-    Get available machine types for a seat.
+    Get available machine types for a machine.
 
-    This demonstrates the get_seat_available_machine_types() API method.
+    This demonstrates the get_machine_available_machine_types() API method.
     """
-    logger.info(f"[GET AVAILABLE MACHINE TYPES] seat_id={seat_id}")
+    logger.info(f"[GET AVAILABLE MACHINE TYPES] machine_id={machine_id}")
     try:
-        machine_types = api_client.get_seat_available_machine_types(seat_id)
-        logger.info(f"[GET AVAILABLE MACHINE TYPES] Success: seat_id={seat_id}, count={len(machine_types)}")
+        machine_types = api_client.get_machine_available_machine_types(machine_id)
+        logger.info(f"[GET AVAILABLE MACHINE TYPES] Success: machine_id={machine_id}, count={len(machine_types)}")
         return jsonify({'machine_types': machine_types})
     except VagonAPIError as e:
-        logger.error(f"[GET AVAILABLE MACHINE TYPES] Error: seat_id={seat_id}, client_code={e.client_code}, status={e.status_code}, message={e.message}")
+        logger.error(f"[GET AVAILABLE MACHINE TYPES] Error: machine_id={machine_id}, client_code={e.client_code}, status={e.status_code}, message={e.message}")
         raise
     except Exception as e:
-        logger.error(f"[GET AVAILABLE MACHINE TYPES] Unexpected error: seat_id={seat_id}, error={str(e)}")
+        logger.error(f"[GET AVAILABLE MACHINE TYPES] Unexpected error: machine_id={machine_id}, error={str(e)}")
         raise
+
+
+# =============================================================================
+# IMAGES API ROUTES
+# =============================================================================
+
+@app.route('/api/images')
+@handle_api_errors
+def list_images():
+    """
+    List all images (templates).
+
+    This demonstrates the list_images() API method.
+    """
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    query = request.args.get('q', None)
+
+    logger.info(f"[LIST IMAGES] page={page}, per_page={per_page}, query={query}")
+    result = api_client.list_images(page=page, per_page=per_page, query=query)
+    logger.info(f"[LIST IMAGES] Success: count={result.get('count', 0)}")
+
+    # Flatten JSON:API format
+    images = flatten_jsonapi_list(result.get('images', []))
+    return jsonify({
+        'images': images,
+        'count': result.get('count', 0),
+        'page': result.get('page', page),
+        'next_page': result.get('next_page')
+    })
+
+
+@app.route('/api/images/<int:image_id>')
+@handle_api_errors
+def get_image(image_id):
+    """
+    Get image details.
+
+    This demonstrates the get_image() API method.
+    """
+    logger.info(f"[GET IMAGE] image_id={image_id}")
+    result = api_client.get_image(image_id)
+    logger.info(f"[GET IMAGE] Success: image_id={image_id}")
+
+    # Flatten JSON:API format
+    image = flatten_jsonapi_resource(result)
+    return jsonify(image)
+
+
+@app.route('/api/images/install', methods=['POST'])
+@handle_api_errors
+def install_image():
+    """
+    Create a new image from pre-installation.
+
+    This demonstrates the install_image() API method.
+
+    JSON body:
+        {
+            "software_ids": [1, 2, 3],  // optional
+            "base_image_id": 5,        // optional
+            "name": "My Template"      // optional
+        }
+    """
+    logger.info(f"[INSTALL IMAGE] Request received")
+    data = request.get_json(silent=True) or {}
+
+    software_ids = data.get('software_ids')
+    base_image_id = data.get('base_image_id')
+    name = data.get('name')
+
+    logger.info(f"[INSTALL IMAGE] software_ids={software_ids}, base_image_id={base_image_id}, name={name}")
+
+    result = api_client.install_image(
+        software_ids=software_ids,
+        base_image_id=base_image_id,
+        name=name
+    )
+    logger.info(f"[INSTALL IMAGE] Success: result={result}")
+
+    # Flatten JSON:API format
+    image = flatten_jsonapi_resource(result)
+    return jsonify(image)
+
+
+@app.route('/api/images', methods=['POST'])
+@handle_api_errors
+def create_image():
+    """
+    Create a new image from a machine.
+
+    This demonstrates the create_image() API method.
+
+    JSON body:
+        {
+            "machine_id": 456,         // required
+            "name": "My Template"      // optional
+        }
+    """
+    logger.info(f"[CREATE IMAGE] Request received")
+    data = request.get_json(silent=True) or {}
+
+    machine_id = data.get('machine_id')
+    name = data.get('name')
+
+    if not machine_id:
+        logger.error("[CREATE IMAGE] Missing machine_id parameter")
+        return jsonify({
+            'error': 'machine_id parameter is required',
+            'client_code': 400,
+            'status_code': 400
+        }), 400
+
+    logger.info(f"[CREATE IMAGE] machine_id={machine_id}, name={name}")
+
+    result = api_client.create_image(
+        machine_id=machine_id,
+        name=name
+    )
+    logger.info(f"[CREATE IMAGE] Success: result={result}")
+
+    # Flatten JSON:API format
+    image = flatten_jsonapi_resource(result)
+    return jsonify(image)
+
+
+@app.route('/api/images/<int:image_id>/assign', methods=['POST'])
+@handle_api_errors
+def assign_image(image_id):
+    """
+    Assign an image to machines.
+
+    This demonstrates the assign_image() API method.
+
+    JSON body:
+        {
+            "machine_ids": [456, 789]  // required
+        }
+    """
+    logger.info(f"[ASSIGN IMAGE] image_id={image_id}")
+    data = request.get_json(silent=True) or {}
+
+    machine_ids = data.get('machine_ids')
+    if not machine_ids:
+        logger.error("[ASSIGN IMAGE] Missing machine_ids parameter")
+        return jsonify({
+            'error': 'machine_ids parameter is required',
+            'client_code': 400,
+            'status_code': 400
+        }), 400
+
+    logger.info(f"[ASSIGN IMAGE] image_id={image_id}, machine_ids={machine_ids}")
+
+    result = api_client.assign_image(
+        image_id=image_id,
+        machine_ids=machine_ids
+    )
+    logger.info(f"[ASSIGN IMAGE] Success: image_id={image_id}")
+
+    return jsonify({'success': True, 'message': 'Image assigned to machines'})
+
+
+@app.route('/api/images/<int:image_id>', methods=['DELETE'])
+@handle_api_errors
+def delete_image(image_id):
+    """
+    Delete an image.
+
+    This demonstrates the delete_image() API method.
+    """
+    logger.info(f"[DELETE IMAGE] image_id={image_id}")
+    result = api_client.delete_image(image_id)
+    logger.info(f"[DELETE IMAGE] Success: image_id={image_id}")
+    return jsonify({'success': True, 'message': 'Image deleted'})
 
 
 # =============================================================================
@@ -1156,4 +1411,5 @@ if __name__ == '__main__':
         print("Please copy .env.example to .env and add your credentials.")
         print("="*60 + "\n")
 
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5050)
+    

@@ -4,13 +4,13 @@ This project is a Python Flask project to showcase Vagon Computer APIs and their
 
 ## Features
 
-- **Computer Management**: List and view all computers with their associated seat information
-- **Computer Control**: Start, stop, reset, and create access links for computers
+- **Computer Management**: List and view all machines
+- **Computer Control**: Start, stop, reset, and create access links for machines
 - **Machine Configuration**: Change machine type and view available machine types
-- **File Management**: Browse, upload, and download files (organization-wide and computer-specific)
+- **File Management**: Browse, upload, and download files (organization-wide and machine-specific)
 - **User Action Logs**: View activity logs for machines and users
 - **Software Management**: List available softwares and golden images
-- **Seat Management**: Create new seats with software pre-installation
+- **Machine Creation**: Create new machines with software pre-installation
 - **Clean API Client**: Well-documented Python client for the Vagon API
 
 ## Project Structure
@@ -22,7 +22,7 @@ vagon-computer-api-example/
 ├── templates/
 │   ├── base.html         # Base template with Tailwind CSS
 │   ├── index.html        # Computers list page
-│   ├── seat_detail.html  # Computer details and files
+│   ├── machine_detail.html  # Machine details and files
 │   └── files.html        # Shared files directory
 ├── requirements.txt      # Python dependencies
 ├── .env.example          # Environment variables template
@@ -65,7 +65,7 @@ vagon-computer-api-example/
 
 6. **Open in browser:**
    ```
-   http://localhost:5000
+   http://localhost:5050
    ```
 
 ## API Client Usage
@@ -81,10 +81,10 @@ client = VagonAPI(
     api_secret="your_api_secret"
 )
 
-# List seats
-seats = client.list_seats(page=1, per_page=20)
-for seat in seats['seats']:
-    print(f"{seat['name']}: {seat['status']}")
+# List machines
+machines = client.list_machines(page=1, per_page=20)
+for machine in machines['machines']:
+    print(f"{machine['name']}: {machine['status']}")
 
 # Start a machine
 client.start_machine(machine_id=123)
@@ -98,8 +98,8 @@ client.reset_machine(machine_id=123)
 # Change machine type
 client.set_machine_type(machine_id=123, machine_type_id=5)
 
-# Get available machine types for a seat
-machine_types = client.get_seat_available_machine_types(seat_id=456)
+# Get available machine types for a machine
+machine_types = client.get_machine_available_machine_types(machine_id=456)
 
 # Create access link (expires_in in seconds)
 access = client.create_machine_access(machine_id=123, expires_in=3600)
@@ -129,20 +129,20 @@ result = client.list_softwares()
 for software in result['software']:
     print(f"{software['name']}: {software['size']} GB")
 
-# Create a new seat
-result = client.create_seat(
+# Create a new machine
+result = client.create_machine(
     seat_plan_id=1,
     quantity=2,
     software_ids=[1, 2, 3]
 )
-print(f"Created {result['count']} seats")
+print(f"Created {result['count']} machines")
 ```
 
 ## API Endpoints Reference for this Project
 
 ### Web Pages
-- `GET /` - List all computers (seats)
-- `GET /seats/<id>` - Computer details with files
+- `GET /` - List all machines
+- `GET /machines/<id>` - Machine details with files
 - `GET /files` - Browse organization-wide shared files
 - `GET /logs` - View user action logs with filters
 
@@ -158,15 +158,15 @@ print(f"Created {result['count']} seats")
 - `POST /api/machines/<id>/machine-type` - Change machine type
   - Body: `{"machine_type_id": 5}`
 
-### Seats (JSON API)
-- `GET /api/seats/<id>/available-machine-types` - Get available machine types for seat
-- `POST /api/seats/create` - Create new seats
+### Machines (JSON API)
+- `GET /api/machines/<id>/available-machine-types` - Get available machine types for machine
+- `POST /api/machines/create` - Create new machines
   - Body: `{"seat_plan_id": 1, "quantity": 2, "software_ids": [1,2,3]}`
-- `GET /api/seats/<id>/files` - Get seat-specific files
+- `GET /api/machines/<id>/files` - Get machine-specific files
 
 ### Files (JSON API)
 - `GET /api/files/capacity` - Get storage capacity
-  - Optional query: `?seat_id=123` for seat-specific capacity
+  - Optional query: `?machine_id=123` for machine-specific capacity
 - `POST /api/files` - Create file or directory
 - `POST /api/files/upload` - Upload file (multipart)
 - `GET /api/files/<id>/download` - Get download URL
