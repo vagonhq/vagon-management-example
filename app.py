@@ -1153,10 +1153,10 @@ def list_software():
         result = api_client.list_softwares()
         # Flatten JSON:API format
         software = flatten_jsonapi_list(result.get('software', []))
-        golden_images = flatten_jsonapi_list(result.get('golden_images', []))
+        base_images = flatten_jsonapi_list(result.get('base_images', []))
         return jsonify({
             'softwares': software,  # Keep 'softwares' for frontend compatibility
-            'golden_images': golden_images
+            'base_images': base_images
         })
     except VagonAPIError as e:
         logger.error(f"Error fetching softwares: {e.message}")

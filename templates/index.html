@@ -395,7 +395,7 @@
 
             const data = await response.json();
             softwaresData = data.softwares || [];  // Frontend uses 'softwares' key (app.py maintains compatibility)
-            goldenImagesData = data.golden_images || [];
+            goldenImagesData = data.base_images || [];
 
             populateSoftwareList();
             populateBaseImageSelect();

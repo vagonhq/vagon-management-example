@@ -384,7 +384,7 @@
 
             const data = await response.json();
             softwaresData = data.softwares || [];
-            goldenImagesData = data.golden_images || [];
+            goldenImagesData = data.base_images || [];
 
             populateInstallSoftwareList();
             populateInstallBaseImageSelect();
