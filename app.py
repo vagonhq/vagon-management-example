@@ -1160,5 +1160,5 @@ if __name__ == '__main__':
         print("Please copy .env.example to .env and add your credentials.")
         print("="*60 + "\n")
 
-    app.run(host='0.0.0.0', debug=True, port=5050)
+    app.run(debug=True, port=5050)
     

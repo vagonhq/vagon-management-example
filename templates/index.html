@@ -55,9 +55,9 @@
                         </a>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium status-{{ machine.status }}">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium status-{{ machine.friendly_status }}">
                             <span class="w-2 h-2 mr-1.5 rounded-full bg-current"></span>
-                            {{ machine.friendly_status or machine.status }}
+                            {{ machine.friendly_status }}
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -79,12 +79,12 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right">
                         <div class="flex items-center justify-end space-x-2">
-                            {% if machine.status == 'stopped' %}
+                            {% if machine.friendly_status == 'off' %}
                                 <button onclick="startMachine({{ machine.id }})"
                                         class="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">
                                     Start
                                 </button>
-                            {% elif machine.status == 'running' %}
+                            {% elif machine.friendly_status != 'off' %}
                                 <button onclick="stopMachine({{ machine.id }})"
                                         class="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
                                     Stop
@@ -94,7 +94,7 @@
                                     Access
                                 </button>
                             {% else %}
-                                <span class="text-xs text-vagon-400">{{ machine.friendly_status or machine.status }}...</span>
+                                <span class="text-xs text-vagon-400">{{ machine.friendly_status }}...</span>
                             {% endif %}
                             <a href="{{ url_for('machine_detail', machine_id=machine.id) }}"
                                class="px-3 py-1 text-xs bg-vagon-100 text-vagon-700 rounded hover:bg-vagon-200">
