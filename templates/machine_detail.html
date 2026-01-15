@@ -1,24 +1,24 @@
 {% extends "base.html" %}
 
-{% block title %}{{ seat.name or 'Seat' }} - Vagon API Example{% endblock %}
+{% block title %}{{ machine.name or 'Machine' }} - Vagon API Example{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
     <!-- Breadcrumb -->
     <nav class="flex items-center space-x-2 text-sm text-vagon-500">
-        <a href="{{ url_for('index') }}" class="hover:text-vagon-700">Seats</a>
+        <a href="{{ url_for('index') }}" class="hover:text-vagon-700">Machines</a>
         <span>/</span>
-        <span class="text-vagon-900">{{ seat.name or 'Seat #' ~ seat.id }}</span>
+        <span class="text-vagon-900">{{ machine.name or 'Machine #' ~ machine.id }}</span>
     </nav>
 
-    <!-- Seat Info Card -->
+    <!-- Machine Info Card -->
     <div class="bg-white rounded-lg border border-vagon-200 p-6">
         <div class="flex justify-between items-start">
             <div>
-                <h1 class="text-2xl font-semibold text-vagon-900">{{ seat.name or 'Seat #' ~ seat.id }}</h1>
+                <h1 class="text-2xl font-semibold text-vagon-900">{{ machine.name or 'Machine #' ~ machine.id }}</h1>
                 <p class="mt-1 text-sm text-vagon-500">
-                    {% if seat.user %}
-                        {{ seat.user.name or seat.user.email }}
+                    {% if machine.user %}
+                        {{ machine.user.name or machine.user.email }}
                     {% else %}
                         No user assigned
                     {% endif %}
@@ -26,71 +26,69 @@
             </div>
         </div>
 
-        <!-- Machine Info -->
-        {% if seat.machine %}
+        <!-- Machine Status -->
         <div class="mt-6 pt-6 border-t border-vagon-200">
             <h2 class="text-sm font-medium text-vagon-900 mb-4">Machine</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                     <p class="text-xs text-vagon-500">Name</p>
-                    <p class="text-sm text-vagon-900">{{ seat.machine.name or 'Machine' }}</p>
+                    <p class="text-sm text-vagon-900">{{ machine.name or 'Machine' }}</p>
                 </div>
                 <div>
                     <p class="text-xs text-vagon-500">Status</p>
-                    <span class="inline-flex items-center text-sm status-{{ seat.machine.status }}">
+                    <span class="inline-flex items-center text-sm status-{{ machine.status }}">
                         <span class="w-2 h-2 mr-1.5 rounded-full bg-current"></span>
-                        {{ seat.machine.friendly_status or seat.machine.status }}
+                        {{ machine.friendly_status or machine.status }}
                     </span>
                 </div>
                 <div>
                     <p class="text-xs text-vagon-500">Type</p>
                     <div class="flex items-center space-x-2">
                         <select id="machineTypeSelect" 
-                                onchange="changeMachineType({{ seat.machine.id }}, this.value)"
-                                {% if seat.machine.status != 'stopped' %}disabled{% endif %}
-                                class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500 {% if seat.machine.status != 'stopped' %}bg-vagon-50 text-vagon-500 cursor-not-allowed{% endif %}"
-                                {% if seat.machine.status != 'stopped' %}title="Machine must be stopped to change type"{% endif %}>
+                                onchange="changeMachineType({{ machine.id }}, this.value)"
+                                {% if machine.status != 'stopped' %}disabled{% endif %}
+                                class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500 {% if machine.status != 'stopped' %}bg-vagon-50 text-vagon-500 cursor-not-allowed{% endif %}"
+                                {% if machine.status != 'stopped' %}title="Machine must be stopped to change type"{% endif %}>
                             <option value="" disabled>Loading...</option>
                         </select>
                         <span id="machineTypeLoading" class="text-xs text-vagon-400">Loading...</span>
-                        {% if seat.machine.status != 'stopped' %}
+                        {% if machine.status != 'stopped' %}
                         <span class="text-xs text-vagon-400" title="Machine must be stopped to change type">(Stop machine to change)</span>
                         {% endif %}
-                        <span id="currentMachineType" class="text-sm text-vagon-500 hidden">{{ seat.machine.machine_type or '' }}</span>
+                        <span id="currentMachineType" class="text-sm text-vagon-500 hidden">{{ machine.machine_type or '' }}</span>
                     </div>
                 </div>
             </div>
 
             <!-- Machine Actions -->
             <div class="mt-4 flex space-x-2">
-                {% if seat.machine.status == 'stopped' %}
-                    <button onclick="startMachine({{ seat.machine.id }})"
+                {% if machine.status == 'stopped' %}
+                    <button onclick="startMachine({{ machine.id }})"
                             class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
                         Start Machine
                     </button>
-                    <button onclick="resetMachine({{ seat.machine.id }})"
+                    <button onclick="resetMachine({{ machine.id }})"
                             class="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700">
                         Reset Machine
                     </button>
-                {% elif seat.machine.status == 'running' %}
-                    <button onclick="stopMachine({{ seat.machine.id }})"
+                {% elif machine.status == 'running' %}
+                    <button onclick="stopMachine({{ machine.id }})"
                             class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">
                         Stop Machine
                     </button>
-                    <button onclick="createAccess({{ seat.machine.id }})"
+                    <button onclick="createAccess({{ machine.id }})"
                             class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                         Create Access Link
                     </button>
                 {% else %}
-                    <span class="px-4 py-2 text-sm text-vagon-500">Machine is {{ seat.machine.friendly_status or seat.machine.status }}...</span>
+                    <span class="px-4 py-2 text-sm text-vagon-500">Machine is {{ machine.friendly_status or machine.status }}...</span>
                 {% endif %}
-                <a href="{{ url_for('user_action_logs', organization_machine_id=seat.machine.id if seat.machine else None) }}"
+                <a href="{{ url_for('user_action_logs', organization_machine_id=machine.id) }}"
                    class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
                     View Activity Logs
                 </a>
             </div>
         </div>
-        {% endif %}
 
         <!-- Storage Info -->
         <div class="mt-6 pt-6 border-t border-vagon-200">
@@ -98,15 +96,15 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                     <p class="text-xs text-vagon-500">File Storage</p>
-                    <p class="text-sm text-vagon-900">{{ seat.get('file_storage_size') | format_gigabytes }}</p>
+                    <p class="text-sm text-vagon-900">{{ machine.get('file_storage_size') | format_gigabytes }}</p>
                 </div>
                 <div>
                     <p class="text-xs text-vagon-500">Disk Size</p>
-                    <p class="text-sm text-vagon-900">{{ seat.get('disk_size', 'N/A') }} GB</p>
+                    <p class="text-sm text-vagon-900">{{ machine.get('disk_size', 'N/A') }} GB</p>
                 </div>
                 <div>
                     <p class="text-xs text-vagon-500">Remaining Usage</p>
-                    <p class="text-sm text-vagon-900">{{ (seat.remaining_usage or 0) | format_usage_minutes }}</p>
+                    <p class="text-sm text-vagon-900">{{ (machine.remaining_usage or 0) | format_usage_minutes }}</p>
                 </div>
             </div>
         </div>
@@ -136,7 +134,7 @@
         <!-- Breadcrumb Navigation -->
         {% if parent_id != 0 and current %}
         <div class="px-4 py-2 bg-vagon-50 border-b border-vagon-200">
-            <a href="{{ url_for('seat_detail', seat_id=seat.id, parent_id=current.parent_id or 0) }}"
+            <a href="{{ url_for('machine_detail', machine_id=machine.id, parent_id=current.parent_id or 0) }}"
                class="inline-flex items-center text-sm text-vagon-600 hover:text-vagon-900">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
@@ -155,7 +153,7 @@
                         <svg class="w-5 h-5 text-vagon-400" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
                         </svg>
-                        <a href="{{ url_for('seat_detail', seat_id=seat.id, parent_id=file.id) }}"
+                        <a href="{{ url_for('machine_detail', machine_id=machine.id, parent_id=file.id) }}"
                            class="text-sm text-vagon-900 hover:text-vagon-600">
                             {{ file.name }}
                         </a>
@@ -299,16 +297,16 @@
 
 {% block scripts %}
 <script>
-    const seatId = {{ seat.id }};
+    const machineId = {{ machine.id }};
     const currentParentId = {{ parent_id }};
-    const currentMachineTypeId = {% if seat.machine and seat.machine.machine_type_id %}{{ seat.machine.machine_type_id }}{% else %}null{% endif %};
+    const currentMachineTypeId = {% if machine.machine_type_id %}{{ machine.machine_type_id }}{% else %}null{% endif %};
 
     // Load available machine types on page load
     let availableMachineTypes = [];
     
     async function loadAvailableMachineTypes() {
         try {
-            const result = await apiCall(`/api/seats/${seatId}/available-machine-types`);
+            const result = await apiCall(`/api/machines/${machineId}/available-machine-types`);
             availableMachineTypes = result.machine_types || [];
             
             const select = document.getElementById('machineTypeSelect');
@@ -324,7 +322,7 @@
             select.innerHTML = '';
             
             // Add options
-            const currentMachineTypeName = '{{ seat.machine.machine_type if seat.machine and seat.machine.machine_type else "" }}';
+            const currentMachineTypeName = '{{ machine.machine_type if machine.machine_type else "" }}';
             let selectedFound = false;
             let currentMachineTypeFriendlyName = null;
             
@@ -367,16 +365,14 @@
     }
     
     // Load machine types when page loads
-    {% if seat.machine %}
     loadAvailableMachineTypes();
-    {% endif %}
 
     // Change machine type
     async function changeMachineType(machineId, machineTypeId) {
         if (!machineTypeId) return;
         
         // Check if machine is stopped (extra safety check)
-        const machineStatus = '{{ seat.machine.status if seat.machine else "" }}';
+        const machineStatus = '{{ machine.status }}';
         if (machineStatus !== 'stopped') {
             showToast('Machine must be stopped to change type');
             // Reset dropdown to previous value
@@ -501,7 +497,7 @@
                 name: name,
                 object_type: 'directory',
                 parent_id: currentParentId,
-                seat_id: seatId
+                machine_id: machineId
             });
             showToast('Folder created');
             closeCreateFolderModal();
@@ -543,7 +539,7 @@
             const formData = new FormData();
             formData.append('file', file);
             formData.append('parent_id', currentParentId);
-            formData.append('seat_id', seatId);
+            formData.append('machine_id', machineId);
 
             const response = await fetch('/api/files/upload', {
                 method: 'POST',

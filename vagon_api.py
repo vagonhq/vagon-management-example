@@ -13,8 +13,8 @@ Usage:
         api_secret="your_api_secret"
     )
 
-    # List all seats
-    seats = client.list_seats()
+    # List all machines
+    machines = client.list_machines()
 
     # Start a machine
     client.start_machine(machine_id=123)
@@ -52,7 +52,7 @@ class VagonAPI:
     Python client for Vagon Computer Management API.
 
     This client handles HMAC authentication and provides methods for all
-    available API endpoints including seats, machines, and files management.
+        available API endpoints including machines and files management.
 
     Attributes:
         api_key: Your Vagon API key
@@ -61,8 +61,8 @@ class VagonAPI:
 
     Example:
         >>> client = VagonAPI("api_key", "api_secret")
-        >>> seats = client.list_seats()
-        >>> print(f"Found {seats['count']} seats")
+        >>> machines = client.list_machines()
+        >>> print(f"Found {machines['count']} machines")
     """
 
     # API Base URLs
@@ -257,47 +257,57 @@ class VagonAPI:
             return response.text or f"HTTP {response.status_code}", response.status_code
 
     # =========================================================================
-    # SEATS ENDPOINTS
+    # MACHINES ENDPOINTS (formerly SEATS)
     # =========================================================================
 
-    def list_seats(
+    def list_machines(
         self,
         page: int = 1,
         per_page: int = 20,
         query: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        List all seats in the organization.
+        List all machines in the organization.
 
-        Seats represent user allocations within the organization. Each seat
-        can have an associated machine and user.
+        Machines represent computers in the organization. Each machine
+        has an associated seat (internal) and user.
 
         Args:
             page: Page number for pagination (default: 1)
             per_page: Number of items per page (default: 20)
-            query: Search query to filter seats by user (optional)
+            query: Search query to filter machines by user (optional)
 
         Returns:
             Dict containing:
-                - seats: List of seat objects
-                - count: Total number of seats
+                - machines: List of machine objects
+                - count: Total number of machines
                 - page: Current page number
                 - next_page: Next page number or None
 
         Example:
-            >>> seats = client.list_seats(page=1, per_page=10)
-            >>> for seat in seats['seats']:
-            ...     print(f"{seat['name']}: {seat['status']}")
+            >>> machines = client.list_machines(page=1, per_page=10)
+            >>> for machine in machines['machines']:
+            ...     print(f"{machine['name']}: {machine['status']}")
         """
         params = {"page": page, "per_page": per_page}
         if query:
             params["q"] = query
 
-        return self._request("GET", "/organization-management/v1/seats", params=params)
+        return self._request("GET", "/organization-management/v1/machines", params=params)
+
+    # Backward compatibility alias (deprecated)
+    def list_seats(self, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Deprecated: Use list_machines() instead.
+        """
+        return self.list_machines(*args, **kwargs)
 
     def get_seat(self, seat_id: int) -> Dict[str, Any]:
         """
         Get detailed information about a specific seat.
+
+        Note: This endpoint is kept for backward compatibility.
+        Consider using get_machine() instead.
 
         Args:
             seat_id: The unique identifier of the seat
@@ -319,14 +329,14 @@ class VagonAPI:
         """
         return self._request("GET", f"/organization-management/v1/seats/{seat_id}")
 
-    def list_seat_content(self, seat_id: int, path: str) -> Dict[str, Any]:
+    def list_machine_content(self, machine_id: int, path: str) -> Dict[str, Any]:
         """
-        List content of a specific path on the seat's machine.
+        List content of a specific path on the machine.
 
         Note: The machine must be running to use this endpoint.
 
         Args:
-            seat_id: The seat ID
+            machine_id: The machine ID
             path: Path on the machine to list (e.g., '/home/user')
 
         Returns:
@@ -334,29 +344,29 @@ class VagonAPI:
                 - content: Object with 'files' and 'directories' arrays
 
         Example:
-            >>> content = client.list_seat_content(123, '/home/user')
+            >>> content = client.list_machine_content(456, '/home/user')
             >>> for file in content['content']['files']:
             ...     print(f"{file['name']} ({file['size']} bytes)")
         """
         return self._request(
             "POST",
-            f"/organization-management/v1/seats/{seat_id}/list-content",
+            f"/organization-management/v1/machines/{machine_id}/list-content",
             body={"path": path}
         )
 
-    def get_seat_files(
+    def get_machine_files(
         self,
-        seat_id: int,
+        machine_id: int,
         parent_id: int = 0,
         page: int = 1,
         per_page: int = 20,
         query: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Get files and directories for a specific seat's file storage.
+        Get files and directories for a specific machine's file storage.
 
         Args:
-            seat_id: The seat ID
+            machine_id: The machine ID
             parent_id: Parent directory ID (0 for root)
             page: Page number for pagination
             per_page: Number of items per page
@@ -371,7 +381,7 @@ class VagonAPI:
                 - next_page: Next page or None
 
         Example:
-            >>> files = client.get_seat_files(123, parent_id=0)
+            >>> files = client.get_machine_files(456, parent_id=0)
             >>> for f in files['files']:
             ...     print(f"{f['name']} - {f['object_type']}")
         """
@@ -381,12 +391,34 @@ class VagonAPI:
 
         return self._request(
             "GET",
-            f"/organization-management/v1/seats/{seat_id}/files",
+            f"/organization-management/v1/machines/{machine_id}/files",
             params=params
         )
 
+    # Backward compatibility aliases (deprecated)
+    def list_seat_content(self, seat_id: int, path: str) -> Dict[str, Any]:
+        """
+        Deprecated: Use list_machine_content() instead.
+        Note: This method still works but requires machine_id, not seat_id.
+        """
+        return self.list_machine_content(seat_id, path)
+
+    def get_seat_files(
+        self,
+        seat_id: int,
+        parent_id: int = 0,
+        page: int = 1,
+        per_page: int = 20,
+        query: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Deprecated: Use get_machine_files() instead.
+        Note: This method still works but requires machine_id, not seat_id.
+        """
+        return self.get_machine_files(seat_id, parent_id, page, per_page, query)
+
     # =========================================================================
-    # MACHINES ENDPOINTS
+    # MACHINE MANAGEMENT ENDPOINTS
     # =========================================================================
 
     def get_machine(self, machine_id: int) -> Dict[str, Any]:
@@ -538,32 +570,40 @@ class VagonAPI:
             body={"expires_in": expires_in}
         )
 
-    def get_seat_available_machine_types(self, seat_id: int) -> List[Dict[str, Any]]:
+    def get_machine_available_machine_types(self, machine_id: int) -> List[Dict[str, Any]]:
         """
-        Get available machine types for a specific seat.
+        Get available machine types for a specific machine.
 
-        The machine types are determined by the seat's organization seat plan.
+        The machine types are determined by the machine's seat plan.
 
         Args:
-            seat_id: The seat ID
+            machine_id: The machine ID
 
         Returns:
             List of machine type objects in JSON:API format (flattened)
 
         Example:
-            >>> machine_types = client.get_seat_available_machine_types(123)
+            >>> machine_types = client.get_machine_available_machine_types(456)
             >>> for mt in machine_types:
             ...     print(f"{mt['name']} - {mt['friendly_name']}")
         """
         result = self._request(
             "GET",
-            f"/organization-management/v1/seats/{seat_id}/available-machine-types"
+            f"/organization-management/v1/machines/{machine_id}/available-machine-types"
         )
         # API returns machine types wrapped in a "machine_types" key
         machine_types = result.get("machine_types", [])
         if isinstance(machine_types, list):
             return [flatten_jsonapi_resource(item) for item in machine_types]
         return []
+
+    # Backward compatibility alias (deprecated)
+    def get_seat_available_machine_types(self, seat_id: int) -> List[Dict[str, Any]]:
+        """
+        Deprecated: Use get_machine_available_machine_types() instead.
+        Note: This method still works but requires machine_id, not seat_id.
+        """
+        return self.get_machine_available_machine_types(seat_id)
 
     def set_machine_type(
         self,
@@ -639,7 +679,7 @@ class VagonAPI:
         self,
         name: str,
         parent_id: int = 0,
-        seat_id: Optional[int] = None
+        machine_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Create a new directory.
@@ -647,7 +687,7 @@ class VagonAPI:
         Args:
             name: Directory name
             parent_id: Parent directory ID (0 for root)
-            seat_id: Seat ID for seat-specific storage (optional)
+            machine_id: Machine ID for machine-specific storage (optional, backend accepts as seat_id)
 
         Returns:
             Dict containing:
@@ -663,8 +703,8 @@ class VagonAPI:
             "object_type": "directory",
             "parent_id": parent_id
         }
-        if seat_id is not None:
-            body["seat_id"] = seat_id
+        if machine_id is not None:
+            body["seat_id"] = machine_id  # Backend still uses seat_id parameter
 
         return self._request("POST", "/organization-management/v1/files", body=body)
 
@@ -676,7 +716,7 @@ class VagonAPI:
         size: int,
         chunk_size: int = 250,
         overwrite: bool = False,
-        seat_id: Optional[int] = None
+        machine_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Create a new file and get multipart upload URLs.
@@ -691,7 +731,7 @@ class VagonAPI:
             size: File size in bytes
             chunk_size: Chunk size in MB (default: 250)
             overwrite: Overwrite existing file (default: False)
-            seat_id: Seat ID for seat-specific storage (optional)
+            machine_id: Machine ID for machine-specific storage (optional, backend accepts as seat_id)
 
         Returns:
             Dict containing:
@@ -720,8 +760,8 @@ class VagonAPI:
             "chunk_size": chunk_size,
             "overwrite": overwrite
         }
-        if seat_id is not None:
-            body["seat_id"] = seat_id
+        if machine_id is not None:
+            body["seat_id"] = machine_id  # Backend still uses seat_id parameter
 
         return self._request("POST", "/organization-management/v1/files", body=body)
 
@@ -799,12 +839,12 @@ class VagonAPI:
         """
         return self._request("DELETE", f"/organization-management/v1/files/{file_id}")
 
-    def get_capacity(self, seat_id: Optional[int] = None) -> Dict[str, Any]:
+    def get_capacity(self, machine_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Get storage capacity information.
 
         Args:
-            seat_id: Seat ID for seat-specific capacity (optional)
+            machine_id: Machine ID for machine-specific capacity (optional, backend accepts as seat_id)
 
         Returns:
             Dict containing:
@@ -819,8 +859,8 @@ class VagonAPI:
             >>> print(f"Using {used_gb:.2f} GB of {total_gb:.2f} GB")
         """
         params = {}
-        if seat_id is not None:
-            params["seat_id"] = seat_id
+        if machine_id is not None:
+            params["seat_id"] = machine_id  # Backend still uses seat_id parameter
 
         return self._request(
             "GET",
@@ -890,41 +930,46 @@ class VagonAPI:
         """
         return self._request("GET", "/organization-management/v1/software")
 
-    def create_seat(
+    def create_machine(
         self,
         seat_plan_id: int,
         quantity: int = 1,
         software_ids: Optional[List[int]] = None,
         base_image_id: Optional[int] = None,
+        region: Optional[str] = None,
         permissions: Optional[Dict[str, bool]] = None
     ) -> Dict[str, Any]:
         """
-        Create new seats with balance payment.
+        Create new machines with balance payment.
+
+        Seats are created internally, but machines are returned in the response.
 
         Args:
             seat_plan_id: The seat plan ID (required)
-            quantity: Number of seats to create (default: 1)
+            quantity: Number of machines to create (default: 1)
             software_ids: List of software IDs to pre-install (optional)
             base_image_id: Base golden image ID (optional, uses default if not provided)
+            region: Deployment region (optional, e.g., 'dublin')
             permissions: Dict of permission field names to boolean values (optional)
 
         Returns:
             Dict containing:
-                - seats: List of created seat objects
-                - count: Number of seats created
+                - machines: List of created machine objects
+                - count: Number of machines created
                 - silver_image: Silver image object if software_ids or base_image_id provided
 
         Example:
-            >>> result = client.create_seat(
+            >>> result = client.create_machine(
             ...     seat_plan_id=1,
             ...     quantity=2,
             ...     software_ids=[1, 2, 3],
+            ...     region='dublin',
             ...     permissions={
             ...         "screen_recording_enabled": True,
             ...         "input_recording_enabled": True
             ...     }
             ... )
-            >>> print(f"Created {result['count']} seats")
+            >>> print(f"Created {result['count']} machines")
         """
         data = {
             "seat_plan_id": seat_plan_id,
@@ -934,10 +979,32 @@ class VagonAPI:
             data["software_ids"] = software_ids
         if base_image_id:
             data["base_image_id"] = base_image_id
+        if region:
+            data["region"] = region
         if permissions:
             data["permissions"] = permissions
 
-        return self._request("POST", "/organization-management/v1/seats", body=data)
+        return self._request("POST", "/organization-management/v1/machines", body=data)
+
+    # Backward compatibility alias (deprecated)
+    def create_seat(
+        self,
+        seat_plan_id: int,
+        quantity: int = 1,
+        software_ids: Optional[List[int]] = None,
+        base_image_id: Optional[int] = None,
+        permissions: Optional[Dict[str, bool]] = None
+    ) -> Dict[str, Any]:
+        """
+        Deprecated: Use create_machine() instead.
+        """
+        return self.create_machine(
+            seat_plan_id=seat_plan_id,
+            quantity=quantity,
+            software_ids=software_ids,
+            base_image_id=base_image_id,
+            permissions=permissions
+        )
 
     def get_permission_fields(self) -> Dict[str, Any]:
         """
@@ -952,7 +1019,7 @@ class VagonAPI:
             >>> for field in result['permission_fields']:
             ...     print(f"{field['name']}: {field['default']}")
         """
-        return self._request("GET", "/organization-management/v1/seats/permission-fields")
+        return self._request("GET", "/organization-management/v1/machines/permission-fields")
 
     def get_archived_user_action_logs_urls(
         self,

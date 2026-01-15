@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Seats - Vagon API Example{% endblock %}
+{% block title %}Machines - Vagon API Example{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -17,7 +17,7 @@
                 <input type="text"
                        name="q"
                        value="{{ query or '' }}"
-                       placeholder="Search seats..."
+                       placeholder="Search machines..."
                        class="px-4 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
                 <button type="submit" class="px-4 py-2 bg-vagon-800 text-white rounded-lg text-sm hover:bg-vagon-700">
                     Search
@@ -34,7 +34,7 @@
         </div>
     </div>
 
-    <!-- Seats Table -->
+    <!-- Machines Table -->
     <div class="bg-white rounded-lg border border-vagon-200 overflow-hidden">
         <table class="min-w-full divide-y divide-vagon-200">
             <thead class="bg-vagon-50">
@@ -47,77 +47,66 @@
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-vagon-200">
-                {% for seat in seats %}
+                {% for machine in machines %}
                 <tr class="hover:bg-vagon-50">
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <a href="{{ url_for('seat_detail', seat_id=seat.id) }}" class="text-sm font-medium text-vagon-900 hover:text-vagon-600">
-                            Computer #{{ seat.machine.id }}
+                        <a href="{{ url_for('machine_detail', machine_id=machine.id) }}" class="text-sm font-medium text-vagon-900 hover:text-vagon-600">
+                            {{ machine.name or 'Machine #' ~ machine.id }}
                         </a>
-                        <p class="text-xs text-vagon-500">Seat ID: {{ seat.id }}</p>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        {% if seat.machine %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium status-{{ seat.machine.status }}">
-                                <span class="w-2 h-2 mr-1.5 rounded-full bg-current"></span>
-                                {{ seat.machine.friendly_status or seat.machine.status }}
-                            </span>
-                        {% else %}
-                            <span class="text-vagon-400 text-sm">-</span>
-                        {% endif %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium status-{{ machine.status }}">
+                            <span class="w-2 h-2 mr-1.5 rounded-full bg-current"></span>
+                            {{ machine.friendly_status or machine.status }}
+                        </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <p class="text-sm text-vagon-900">
-                            {{ (seat.remaining_usage or 0) | format_usage_with_machine_type(seat.machine.machine_type if seat.machine and seat.machine.machine_type else None) }}
+                            {{ (machine.remaining_usage or 0) | format_usage_with_machine_type(machine.machine_type if machine.machine_type else None) }}
                         </p>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        {% if seat.machine %}
-                            <div class="flex items-center space-x-2">
-                                <span class="text-sm text-vagon-900">{{ seat.machine.machine_type or 'No machine type' }}</span>
-                                <button onclick="openPerformanceModal({{ seat.id }}, {{ seat.machine.id }}, '{{ seat.machine.machine_type if seat.machine.machine_type else '' }}', '{{ seat.machine.status if seat.machine else '' }}')"
-                                        class="text-vagon-400 hover:text-vagon-600 cursor-pointer"
-                                        title="Edit machine type">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                                    </svg>
-                                </button>
-                            </div>
-                        {% else %}
-                            <span class="text-sm text-vagon-400">-</span>
-                        {% endif %}
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-vagon-900">{{ machine.machine_type or 'No machine type' }}</span>
+                            <button onclick="openPerformanceModal({{ machine.id }}, '{{ machine.machine_type if machine.machine_type else '' }}', '{{ machine.status }}')"
+                                    class="text-vagon-400 hover:text-vagon-600 cursor-pointer"
+                                    title="Edit machine type">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                </svg>
+                            </button>
+                        </div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right">
-                        {% if seat.machine %}
-                            <div class="flex items-center justify-end space-x-2">
-                                {% if seat.machine.status == 'stopped' %}
-                                    <button onclick="startMachine({{ seat.machine.id }})"
-                                            class="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">
-                                        Start
-                                    </button>
-                                {% elif seat.machine.status == 'running' %}
-                                    <button onclick="stopMachine({{ seat.machine.id }})"
-                                            class="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
-                                        Stop
-                                    </button>
-                                    <button onclick="createAccess({{ seat.machine.id }})"
-                                            class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
-                                        Access
-                                    </button>
-                                {% else %}
-                                    <span class="text-xs text-vagon-400">{{ seat.machine.friendly_status or seat.machine.status }}...</span>
-                                {% endif %}
-                                <a href="{{ url_for('seat_detail', seat_id=seat.id) }}"
-                                   class="px-3 py-1 text-xs bg-vagon-100 text-vagon-700 rounded hover:bg-vagon-200">
-                                    Files
-                                </a>
-                            </div>
-                        {% endif %}
+                        <div class="flex items-center justify-end space-x-2">
+                            {% if machine.status == 'stopped' %}
+                                <button onclick="startMachine({{ machine.id }})"
+                                        class="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">
+                                    Start
+                                </button>
+                            {% elif machine.status == 'running' %}
+                                <button onclick="stopMachine({{ machine.id }})"
+                                        class="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
+                                    Stop
+                                </button>
+                                <button onclick="createAccess({{ machine.id }})"
+                                        class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                                    Access
+                                </button>
+                            {% else %}
+                                <span class="text-xs text-vagon-400">{{ machine.friendly_status or machine.status }}...</span>
+                            {% endif %}
+                            <a href="{{ url_for('machine_detail', machine_id=machine.id) }}"
+                               class="px-3 py-1 text-xs bg-vagon-100 text-vagon-700 rounded hover:bg-vagon-200">
+                                Files
+                            </a>
+                        </div>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
                     <td colspan="5" class="px-6 py-12 text-center text-vagon-500">
-                        No seats found
+                        No machines found
                     </td>
                 </tr>
                 {% endfor %}
@@ -468,7 +457,7 @@
         try {
             permissionsList.innerHTML = '<p class="text-sm text-vagon-400">Loading permissions...</p>';
 
-            const response = await fetch('/api/seats/permission-fields');
+            const response = await fetch('/api/machines/permission-fields');
             if (!response.ok) {
                 throw new Error('Failed to load permission fields');
             }
@@ -568,7 +557,7 @@
                 payload.permissions = permissions;
             }
 
-            const response = await fetch('/api/seats/create', {
+            const response = await fetch('/api/machines/create', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -610,12 +599,10 @@
     }
 
     // Performance modal state
-    let currentPerformanceSeatId = null;
     let currentPerformanceMachineId = null;
     
     // Open performance modal
-    async function openPerformanceModal(seatId, machineId, currentMachineType, machineStatus) {
-        currentPerformanceSeatId = seatId;
+    async function openPerformanceModal(machineId, currentMachineType, machineStatus) {
         currentPerformanceMachineId = machineId;
         
         const modal = document.getElementById('performanceModal');
@@ -655,7 +642,7 @@
         select.innerHTML = '<option value="" disabled>Loading...</option>';
         
         try {
-            const result = await apiCall(`/api/seats/${seatId}/available-machine-types`);
+            const result = await apiCall(`/api/machines/${machineId}/available-machine-types`);
             const machineTypes = result.machine_types || [];
             
             select.innerHTML = '';
@@ -703,7 +690,6 @@
         const modal = document.getElementById('performanceModal');
         modal.classList.add('hidden');
         modal.classList.remove('flex');
-        currentPerformanceSeatId = null;
         currentPerformanceMachineId = null;
     }
     
