@@ -54,6 +54,10 @@
                            class="px-3 py-2 text-sm font-medium text-vagon-600 hover:text-vagon-900 {% if request.endpoint == 'organization_files' %}text-vagon-900 border-b-2 border-vagon-900{% endif %}">
                             Shared Files Storage
                         </a>
+                        <a href="{{ url_for('images') }}"
+                           class="px-3 py-2 text-sm font-medium text-vagon-600 hover:text-vagon-900 {% if request.endpoint == 'images' %}text-vagon-900 border-b-2 border-vagon-900{% endif %}">
+                            Images
+                        </a>
                         <a href="{{ url_for('user_action_logs') }}"
                            class="px-3 py-2 text-sm font-medium text-vagon-600 hover:text-vagon-900 {% if request.endpoint == 'user_action_logs' %}text-vagon-900 border-b-2 border-vagon-900{% endif %}">
                             Activity Logs

@@ -1054,6 +1054,210 @@ class VagonAPI:
             params=params
         )
 
+    # =========================================================================
+    # IMAGES ENDPOINTS
+    # =========================================================================
+
+    def list_images(
+        self,
+        page: int = 1,
+        per_page: int = 20,
+        query: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        List all images (templates) in the organization.
+
+        Images represent templates that can be assigned to machines.
+        Each image can be created from a machine or from pre-installation.
+
+        Args:
+            page: Page number for pagination (default: 1)
+            per_page: Number of items per page (default: 20)
+            query: Search query to filter images by name (optional)
+
+        Returns:
+            Dict containing:
+                - images: List of image objects
+                - count: Total number of images
+                - page: Current page number
+                - next_page: Next page number or None
+
+        Example:
+            >>> images = client.list_images(page=1, per_page=10)
+            >>> for image in images['images']:
+            ...     print(f"{image['name']}: {image['status']}")
+        """
+        params = {"page": page, "per_page": per_page}
+        if query:
+            params["q"] = query
+
+        return self._request("GET", "/organization-management/v1/images", params=params)
+
+    def get_image(self, image_id: int) -> Dict[str, Any]:
+        """
+        Get detailed information about a specific image.
+
+        Args:
+            image_id: The unique identifier of the image
+
+        Returns:
+            Image object containing:
+                - id: Image ID
+                - name: Image name
+                - size: Image size in bytes
+                - status: Current status (available, pending, building, etc.)
+                - source: Source type (pre_installation, seat)
+                - softwares: List of installed software
+                - created_at: Creation timestamp
+                - updated_at: Last update timestamp
+
+        Example:
+            >>> image = client.get_image(123)
+            >>> print(f"Image {image['name']} is {image['status']}")
+        """
+        return self._request("GET", f"/organization-management/v1/images/{image_id}")
+
+    def install_image(
+        self,
+        software_ids: Optional[List[int]] = None,
+        base_image_id: Optional[int] = None,
+        name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new image from pre-installation (with software).
+
+        This creates a template image with pre-installed software that can
+        be assigned to machines.
+
+        Args:
+            software_ids: List of software IDs to pre-install (optional)
+            base_image_id: Base image ID (optional, uses default if not provided)
+            name: Custom name for the image (optional, auto-generated if not provided)
+
+        Returns:
+            Image object containing the created image details
+
+        Raises:
+            VagonAPIError: With status code 400 if both software_ids and base_image_id are empty/base
+
+        Example:
+            >>> image = client.install_image(
+            ...     software_ids=[1, 2, 3],
+            ...     name="My Custom Template"
+            ... )
+            >>> print(f"Created image: {image['name']}")
+        """
+        body = {}
+        if software_ids:
+            body["software_ids"] = software_ids
+        if base_image_id:
+            body["base_image_id"] = base_image_id
+        if name:
+            body["name"] = name
+
+        return self._request(
+            "POST",
+            "/organization-management/v1/images/install",
+            body=body if body else None
+        )
+
+    def create_image(
+        self,
+        machine_id: int,
+        name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new image from a machine.
+
+        This creates a template image from the current state of a machine.
+        The machine must be stopped (off) to create an image from it.
+
+        Args:
+            machine_id: The machine ID to create image from
+            name: Custom name for the image (optional, auto-generated if not provided)
+
+        Returns:
+            Image object containing the created image details
+
+        Raises:
+            VagonAPIError: With status codes:
+                - 400: Machine is not off or has no image
+                - 404: Machine not found or has no seat
+
+        Example:
+            >>> image = client.create_image(
+            ...     machine_id=456,
+            ...     name="Production Template"
+            ... )
+            >>> print(f"Created image: {image['name']}")
+        """
+        body = {"machine_id": machine_id}
+        if name:
+            body["name"] = name
+
+        return self._request(
+            "POST",
+            "/organization-management/v1/images",
+            body=body
+        )
+
+    def assign_image(
+        self,
+        image_id: int,
+        machine_ids: List[int]
+    ) -> Dict[str, Any]:
+        """
+        Assign an image to one or more machines.
+
+        This will:
+        - Deregister existing machine images
+        - Terminate the machines
+        - Assign the image to the machines' seats
+
+        Args:
+            image_id: The image ID to assign
+            machine_ids: List of machine IDs to assign the image to
+
+        Returns:
+            Empty dict on success
+
+        Raises:
+            VagonAPIError: With status codes:
+                - 400: Invalid parameters
+                - 404: Image or machines not found
+
+        Example:
+            >>> client.assign_image(
+            ...     image_id=123,
+            ...     machine_ids=[456, 789]
+            ... )
+        """
+        return self._request(
+            "POST",
+            f"/organization-management/v1/images/{image_id}/assign",
+            body={"machine_ids": machine_ids}
+        )
+
+    def delete_image(self, image_id: int) -> Dict[str, Any]:
+        """
+        Delete an image.
+
+        This will clean up the image and remove it from all assigned seats.
+
+        Args:
+            image_id: The image ID to delete
+
+        Returns:
+            Empty dict on success
+
+        Raises:
+            VagonAPIError: With status code 404 if image not found
+
+        Example:
+            >>> client.delete_image(123)
+        """
+        return self._request("DELETE", f"/organization-management/v1/images/{image_id}")
+
 
 # =============================================================================
 # UTILITY FUNCTIONS
@@ -1123,6 +1327,14 @@ def flatten_jsonapi_resource(resource: Dict[str, Any]) -> Dict[str, Any]:
         for key in ['user', 'machine']:
             if key in result and isinstance(result[key], dict) and 'attributes' in result[key]:
                 result[key] = flatten_jsonapi_resource(result[key])
+        
+        # Handle nested softwares attribute (JSON:API format with data array)
+        if 'softwares' in result and isinstance(result['softwares'], dict):
+            softwares_data = result['softwares'].get('data', [])
+            if isinstance(softwares_data, list):
+                result['softwares'] = flatten_jsonapi_list(softwares_data)
+            else:
+                result['softwares'] = []
 
     return result
 

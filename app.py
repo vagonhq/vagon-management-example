@@ -480,6 +480,58 @@ def _parse_date_param(param_name: str, default_value: datetime) -> datetime:
             raise BadRequest(f"Invalid {param_name} format. Use ISO date or datetime.") from exc
 
 
+@app.route('/images')
+@handle_api_errors
+def images():
+    """
+    Images page - Display list of all images (templates).
+
+    This demonstrates the list_images() API method.
+    API returns JSON:API format which we flatten for easier template usage.
+    """
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    query = request.args.get('q', None)
+
+    result = api_client.list_images(page=page, per_page=per_page, query=query)
+
+    # Flatten JSON:API format for template
+    images_list = flatten_jsonapi_list(result.get('images', []))
+    
+    # Post-process images to fix enum values and format dates
+    for image in images_list:
+        # Convert source enum (0=seat, 1=pre_installation) to string
+        source_map = {0: 'seat', 1: 'pre_installation'}
+        if 'source' in image and isinstance(image['source'], int):
+            image['source'] = source_map.get(image['source'], 'unknown')
+        
+        # Format created_at date
+        if 'created_at' in image and image['created_at']:
+            try:
+                # Parse ISO format date and format it nicely
+                from datetime import datetime
+                dt = datetime.fromisoformat(image['created_at'].replace('Z', '+00:00'))
+                image['created_at'] = dt.strftime('%Y-%m-%d %H:%M')
+            except (ValueError, AttributeError):
+                # If parsing fails, try to extract date part
+                if isinstance(image['created_at'], str) and len(image['created_at']) >= 10:
+                    image['created_at'] = image['created_at'][:10]
+
+    # Get machines for assign modal
+    machines_result = api_client.list_machines(page=1, per_page=100)
+    machines = flatten_jsonapi_list(machines_result.get('machines', []))
+
+    return render_template(
+        'images.html',
+        images=images_list,
+        count=result.get('count', 0),
+        page=page,
+        next_page=result.get('next_page'),
+        query=query,
+        machines=machines
+    )
+
+
 @app.route('/logs')
 @handle_api_errors
 def user_action_logs():
@@ -581,6 +633,31 @@ def user_action_logs():
 # =============================================================================
 # MACHINE API ROUTES
 # =============================================================================
+
+@app.route('/api/machines', methods=['GET'])
+@handle_api_errors
+def api_list_machines():
+    """
+    API endpoint to list machines (for use in modals and AJAX calls).
+    
+    Returns JSON with machines list in flattened format.
+    """
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    query = request.args.get('q', None)
+
+    result = api_client.list_machines(page=page, per_page=per_page, query=query)
+
+    # Flatten JSON:API format for template
+    machines = flatten_jsonapi_list(result.get('machines', []))
+
+    return jsonify({
+        'machines': machines,
+        'count': result.get('count', 0),
+        'page': result.get('page', page),
+        'next_page': result.get('next_page')
+    })
+
 
 @app.route('/api/machines/<int:machine_id>/start', methods=['POST'])
 @handle_api_errors
@@ -1146,6 +1223,180 @@ def get_machine_available_machine_types(machine_id):
     except Exception as e:
         logger.error(f"[GET AVAILABLE MACHINE TYPES] Unexpected error: machine_id={machine_id}, error={str(e)}")
         raise
+
+
+# =============================================================================
+# IMAGES API ROUTES
+# =============================================================================
+
+@app.route('/api/images')
+@handle_api_errors
+def list_images():
+    """
+    List all images (templates).
+
+    This demonstrates the list_images() API method.
+    """
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    query = request.args.get('q', None)
+
+    logger.info(f"[LIST IMAGES] page={page}, per_page={per_page}, query={query}")
+    result = api_client.list_images(page=page, per_page=per_page, query=query)
+    logger.info(f"[LIST IMAGES] Success: count={result.get('count', 0)}")
+
+    # Flatten JSON:API format
+    images = flatten_jsonapi_list(result.get('images', []))
+    return jsonify({
+        'images': images,
+        'count': result.get('count', 0),
+        'page': result.get('page', page),
+        'next_page': result.get('next_page')
+    })
+
+
+@app.route('/api/images/<int:image_id>')
+@handle_api_errors
+def get_image(image_id):
+    """
+    Get image details.
+
+    This demonstrates the get_image() API method.
+    """
+    logger.info(f"[GET IMAGE] image_id={image_id}")
+    result = api_client.get_image(image_id)
+    logger.info(f"[GET IMAGE] Success: image_id={image_id}")
+
+    # Flatten JSON:API format
+    image = flatten_jsonapi_resource(result)
+    return jsonify(image)
+
+
+@app.route('/api/images/install', methods=['POST'])
+@handle_api_errors
+def install_image():
+    """
+    Create a new image from pre-installation.
+
+    This demonstrates the install_image() API method.
+
+    JSON body:
+        {
+            "software_ids": [1, 2, 3],  // optional
+            "base_image_id": 5,        // optional
+            "name": "My Template"      // optional
+        }
+    """
+    logger.info(f"[INSTALL IMAGE] Request received")
+    data = request.get_json(silent=True) or {}
+
+    software_ids = data.get('software_ids')
+    base_image_id = data.get('base_image_id')
+    name = data.get('name')
+
+    logger.info(f"[INSTALL IMAGE] software_ids={software_ids}, base_image_id={base_image_id}, name={name}")
+
+    result = api_client.install_image(
+        software_ids=software_ids,
+        base_image_id=base_image_id,
+        name=name
+    )
+    logger.info(f"[INSTALL IMAGE] Success: result={result}")
+
+    # Flatten JSON:API format
+    image = flatten_jsonapi_resource(result)
+    return jsonify(image)
+
+
+@app.route('/api/images', methods=['POST'])
+@handle_api_errors
+def create_image():
+    """
+    Create a new image from a machine.
+
+    This demonstrates the create_image() API method.
+
+    JSON body:
+        {
+            "machine_id": 456,         // required
+            "name": "My Template"      // optional
+        }
+    """
+    logger.info(f"[CREATE IMAGE] Request received")
+    data = request.get_json(silent=True) or {}
+
+    machine_id = data.get('machine_id')
+    name = data.get('name')
+
+    if not machine_id:
+        logger.error("[CREATE IMAGE] Missing machine_id parameter")
+        return jsonify({
+            'error': 'machine_id parameter is required',
+            'client_code': 400,
+            'status_code': 400
+        }), 400
+
+    logger.info(f"[CREATE IMAGE] machine_id={machine_id}, name={name}")
+
+    result = api_client.create_image(
+        machine_id=machine_id,
+        name=name
+    )
+    logger.info(f"[CREATE IMAGE] Success: result={result}")
+
+    # Flatten JSON:API format
+    image = flatten_jsonapi_resource(result)
+    return jsonify(image)
+
+
+@app.route('/api/images/<int:image_id>/assign', methods=['POST'])
+@handle_api_errors
+def assign_image(image_id):
+    """
+    Assign an image to machines.
+
+    This demonstrates the assign_image() API method.
+
+    JSON body:
+        {
+            "machine_ids": [456, 789]  // required
+        }
+    """
+    logger.info(f"[ASSIGN IMAGE] image_id={image_id}")
+    data = request.get_json(silent=True) or {}
+
+    machine_ids = data.get('machine_ids')
+    if not machine_ids:
+        logger.error("[ASSIGN IMAGE] Missing machine_ids parameter")
+        return jsonify({
+            'error': 'machine_ids parameter is required',
+            'client_code': 400,
+            'status_code': 400
+        }), 400
+
+    logger.info(f"[ASSIGN IMAGE] image_id={image_id}, machine_ids={machine_ids}")
+
+    result = api_client.assign_image(
+        image_id=image_id,
+        machine_ids=machine_ids
+    )
+    logger.info(f"[ASSIGN IMAGE] Success: image_id={image_id}")
+
+    return jsonify({'success': True, 'message': 'Image assigned to machines'})
+
+
+@app.route('/api/images/<int:image_id>', methods=['DELETE'])
+@handle_api_errors
+def delete_image(image_id):
+    """
+    Delete an image.
+
+    This demonstrates the delete_image() API method.
+    """
+    logger.info(f"[DELETE IMAGE] image_id={image_id}")
+    result = api_client.delete_image(image_id)
+    logger.info(f"[DELETE IMAGE] Success: image_id={image_id}")
+    return jsonify({'success': True, 'message': 'Image deleted'})
 
 
 # =============================================================================
