@@ -65,7 +65,7 @@ vagon-computer-api-example/
 
 6. **Open in browser:**
    ```
-   http://localhost:5000
+   http://localhost:5050
    ```
 
 ## API Client Usage
