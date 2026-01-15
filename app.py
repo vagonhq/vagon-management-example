@@ -1092,18 +1092,18 @@ def create_machine():
     """API endpoint to create new machines."""
     try:
         data = request.get_json()
-        seat_plan_id = data.get('seat_plan_id') or data.get('seat_plan_id')  # Support both for backward compatibility
+        plan_id = data.get('plan_id') or data.get('seat_plan_id')  # Support both for backward compatibility
         quantity = data.get('quantity', 1)
         software_ids = data.get('software_ids', [])
         base_image_id = data.get('base_image_id')
 
-        if not seat_plan_id:
-            return jsonify({'error': 'seat_plan_id is required'}), 400
+        if not plan_id:
+            return jsonify({'error': 'plan_id is required'}), 400
 
         permissions = data.get('permissions')
         
         result = api_client.create_machine(
-            seat_plan_id=seat_plan_id,
+            plan_id=plan_id,
             quantity=quantity,
             software_ids=software_ids if software_ids else None,
             base_image_id=base_image_id,
@@ -1160,4 +1160,5 @@ if __name__ == '__main__':
         print("Please copy .env.example to .env and add your credentials.")
         print("="*60 + "\n")
 
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', debug=True, port=5050)
+    

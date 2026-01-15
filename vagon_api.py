@@ -687,7 +687,7 @@ class VagonAPI:
         Args:
             name: Directory name
             parent_id: Parent directory ID (0 for root)
-            machine_id: Machine ID for machine-specific storage (optional, backend accepts as seat_id)
+            machine_id: Machine ID for machine-specific storage (optional)
 
         Returns:
             Dict containing:
@@ -704,7 +704,7 @@ class VagonAPI:
             "parent_id": parent_id
         }
         if machine_id is not None:
-            body["seat_id"] = machine_id  # Backend still uses seat_id parameter
+            body["machine_id"] = machine_id
 
         return self._request("POST", "/organization-management/v1/files", body=body)
 
@@ -731,7 +731,7 @@ class VagonAPI:
             size: File size in bytes
             chunk_size: Chunk size in MB (default: 250)
             overwrite: Overwrite existing file (default: False)
-            machine_id: Machine ID for machine-specific storage (optional, backend accepts as seat_id)
+            machine_id: Machine ID for machine-specific storage (optional)
 
         Returns:
             Dict containing:
@@ -761,7 +761,7 @@ class VagonAPI:
             "overwrite": overwrite
         }
         if machine_id is not None:
-            body["seat_id"] = machine_id  # Backend still uses seat_id parameter
+            body["machine_id"] = machine_id
 
         return self._request("POST", "/organization-management/v1/files", body=body)
 
@@ -844,7 +844,7 @@ class VagonAPI:
         Get storage capacity information.
 
         Args:
-            machine_id: Machine ID for machine-specific capacity (optional, backend accepts as seat_id)
+            machine_id: Machine ID for machine-specific capacity (optional)
 
         Returns:
             Dict containing:
@@ -860,7 +860,7 @@ class VagonAPI:
         """
         params = {}
         if machine_id is not None:
-            params["seat_id"] = machine_id  # Backend still uses seat_id parameter
+            params["machine_id"] = machine_id
 
         return self._request(
             "GET",
@@ -916,23 +916,25 @@ class VagonAPI:
 
     def list_softwares(self) -> Dict[str, Any]:
         """
-        List all available softwares and golden images.
+        List all available softwares and base images.
 
         Returns:
             Dict containing:
                 - software: List of software objects (id, name, size)
-                - golden_images: List of golden image objects (id, name, size)
+                - base_images: List of base image objects (id, name, size, type)
 
         Example:
             >>> result = client.list_softwares()
             >>> for software in result['software']:
             ...     print(f"{software['name']}: {software['size']} GB")
+            >>> for base_image in result['base_images']:
+            ...     print(f"{base_image['name']}: {base_image['size']} GB, type: {base_image['type']}")
         """
         return self._request("GET", "/organization-management/v1/software")
 
     def create_machine(
         self,
-        seat_plan_id: int,
+        plan_id: int,
         quantity: int = 1,
         software_ids: Optional[List[int]] = None,
         base_image_id: Optional[int] = None,
@@ -945,10 +947,10 @@ class VagonAPI:
         Seats are created internally, but machines are returned in the response.
 
         Args:
-            seat_plan_id: The seat plan ID (required)
+            plan_id: The plan ID (required)
             quantity: Number of machines to create (default: 1)
             software_ids: List of software IDs to pre-install (optional)
-            base_image_id: Base golden image ID (optional, uses default if not provided)
+            base_image_id: Base image ID (optional, uses default if not provided)
             region: Deployment region (optional, e.g., 'dublin')
             permissions: Dict of permission field names to boolean values (optional)
 
@@ -960,7 +962,7 @@ class VagonAPI:
 
         Example:
             >>> result = client.create_machine(
-            ...     seat_plan_id=1,
+            ...     plan_id=1,
             ...     quantity=2,
             ...     software_ids=[1, 2, 3],
             ...     region='dublin',
@@ -972,7 +974,7 @@ class VagonAPI:
             >>> print(f"Created {result['count']} machines")
         """
         data = {
-            "seat_plan_id": seat_plan_id,
+            "plan_id": plan_id,
             "quantity": quantity
         }
         if software_ids:
@@ -989,7 +991,7 @@ class VagonAPI:
     # Backward compatibility alias (deprecated)
     def create_seat(
         self,
-        seat_plan_id: int,
+        plan_id: int,
         quantity: int = 1,
         software_ids: Optional[List[int]] = None,
         base_image_id: Optional[int] = None,
@@ -999,7 +1001,7 @@ class VagonAPI:
         Deprecated: Use create_machine() instead.
         """
         return self.create_machine(
-            seat_plan_id=seat_plan_id,
+            plan_id=plan_id,
             quantity=quantity,
             software_ids=software_ids,
             base_image_id=base_image_id,
