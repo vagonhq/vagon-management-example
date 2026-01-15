@@ -68,7 +68,7 @@
                     <td class="px-6 py-4 whitespace-nowrap">
                         <div class="flex items-center space-x-2">
                             <span class="text-sm text-vagon-900">{{ machine.machine_type or 'No machine type' }}</span>
-                            <button onclick="openPerformanceModal({{ machine.id }}, '{{ machine.machine_type if machine.machine_type else '' }}', '{{ machine.status }}')"
+                            <button onclick="openPerformanceModal({{ machine.id }}, '{{ machine.machine_type if machine.machine_type else '' }}', '{{ machine.friendly_status }}')"
                                     class="text-vagon-400 hover:text-vagon-600 cursor-pointer"
                                     title="Edit machine type">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
