@@ -36,9 +36,9 @@
                 </div>
                 <div>
                     <p class="text-xs text-vagon-500">Status</p>
-                    <span class="inline-flex items-center text-sm status-{{ machine.status }}">
+                    <span class="inline-flex items-center text-sm status-{{ machine.friendly_status }}">
                         <span class="w-2 h-2 mr-1.5 rounded-full bg-current"></span>
-                        {{ machine.friendly_status or machine.status }}
+                        {{ machine.friendly_status }}
                     </span>
                 </div>
                 <div>
@@ -46,13 +46,13 @@
                     <div class="flex items-center space-x-2">
                         <select id="machineTypeSelect" 
                                 onchange="changeMachineType({{ machine.id }}, this.value)"
-                                {% if machine.status != 'stopped' %}disabled{% endif %}
-                                class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500 {% if machine.status != 'stopped' %}bg-vagon-50 text-vagon-500 cursor-not-allowed{% endif %}"
-                                {% if machine.status != 'stopped' %}title="Machine must be stopped to change type"{% endif %}>
+                                {% if machine.friendly_status != 'off' %}disabled{% endif %}
+                                class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500 {% if machine.friendly_status != 'off' %}bg-vagon-50 text-vagon-500 cursor-not-allowed{% endif %}"
+                                {% if machine.friendly_status != 'off' %}title="Machine must be stopped to change type"{% endif %}>
                             <option value="" disabled>Loading...</option>
                         </select>
                         <span id="machineTypeLoading" class="text-xs text-vagon-400">Loading...</span>
-                        {% if machine.status != 'stopped' %}
+                        {% if machine.friendly_status != 'off' %}
                         <span class="text-xs text-vagon-400" title="Machine must be stopped to change type">(Stop machine to change)</span>
                         {% endif %}
                         <span id="currentMachineType" class="text-sm text-vagon-500 hidden">{{ machine.machine_type or '' }}</span>
@@ -62,7 +62,7 @@
 
             <!-- Machine Actions -->
             <div class="mt-4 flex space-x-2">
-                {% if machine.status == 'stopped' %}
+                {% if machine.friendly_status == 'off' %}
                     <button onclick="startMachine({{ machine.id }})"
                             class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
                         Start Machine
@@ -71,7 +71,7 @@
                             class="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700">
                         Reset Machine
                     </button>
-                {% elif machine.status == 'running' %}
+                {% elif machine.friendly_status != 'off' %}
                     <button onclick="stopMachine({{ machine.id }})"
                             class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">
                         Stop Machine
@@ -81,7 +81,7 @@
                         Create Access Link
                     </button>
                 {% else %}
-                    <span class="px-4 py-2 text-sm text-vagon-500">Machine is {{ machine.friendly_status or machine.status }}...</span>
+                    <span class="px-4 py-2 text-sm text-vagon-500">Machine is {{ machine.friendly_status }}...</span>
                 {% endif %}
                 <a href="{{ url_for('user_action_logs', organization_machine_id=machine.id) }}"
                    class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
@@ -372,8 +372,8 @@
         if (!machineTypeId) return;
         
         // Check if machine is stopped (extra safety check)
-        const machineStatus = '{{ machine.status }}';
-        if (machineStatus !== 'stopped') {
+        const machineStatus = '{{ machine.friendly_status }}';
+        if (machineStatus !== 'off') {
             showToast('Machine must be stopped to change type');
             // Reset dropdown to previous value
             loadAvailableMachineTypes();
