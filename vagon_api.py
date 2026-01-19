@@ -264,7 +264,10 @@ class VagonAPI:
         self,
         page: int = 1,
         per_page: int = 20,
-        query: Optional[str] = None
+        query: Optional[str] = None,
+        time_left: Optional[int] = None,
+        has_session_data: Optional[bool] = None,
+        status: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         List all machines in the organization.
@@ -276,6 +279,9 @@ class VagonAPI:
             page: Page number for pagination (default: 1)
             per_page: Number of items per page (default: 20)
             query: Search query to filter machines by user (optional)
+            time_left: Filter by remaining usage in minutes (optional)
+            has_session_data: Filter by whether machine has session data after reset (optional)
+            status: Filter by machine status (optional, e.g., 'running', 'off', 'stopping')
 
         Returns:
             Dict containing:
@@ -288,10 +294,20 @@ class VagonAPI:
             >>> machines = client.list_machines(page=1, per_page=10)
             >>> for machine in machines['machines']:
             ...     print(f"{machine['name']}: {machine['status']}")
+            >>> # Filter by status
+            >>> running_machines = client.list_machines(status='running')
+            >>> # Filter by time left (machines with at least 60 minutes remaining)
+            >>> machines_with_time = client.list_machines(time_left=60)
         """
         params = {"page": page, "per_page": per_page}
         if query:
             params["q"] = query
+        if time_left is not None:
+            params["time_left"] = time_left
+        if has_session_data is not None:
+            params["has_session_data"] = has_session_data
+        if status:
+            params["status"] = status
 
         return self._request("GET", "/organization-management/v1/machines", params=params)
 
@@ -1022,6 +1038,44 @@ class VagonAPI:
             ...     print(f"{field['name']}: {field['default']}")
         """
         return self._request("GET", "/organization-management/v1/machines/permission-fields")
+
+    def update_machine_permissions(
+        self,
+        machine_id: int,
+        permissions: Dict[str, bool]
+    ) -> Dict[str, Any]:
+        """
+        Update permissions for a specific machine.
+
+        This allows you to modify permission settings for a machine's seat.
+        Only permission fields available in the external API can be updated.
+
+        Args:
+            machine_id: The machine ID
+            permissions: Dict of permission field names to boolean values
+
+        Returns:
+            Empty dict on success
+
+        Raises:
+            VagonAPIError: With status codes:
+                - 400: Invalid permissions or machine not found
+                - 4202: Permissions parameter is required
+
+        Example:
+            >>> client.update_machine_permissions(
+            ...     machine_id=456,
+            ...     permissions={
+            ...         "screen_recording_enabled": True,
+            ...         "input_recording_enabled": False
+            ...     }
+            ... )
+        """
+        return self._request(
+            "POST",
+            f"/organization-management/v1/machines/{machine_id}/permissions",
+            body={"permissions": permissions}
+        )
 
     def get_archived_user_action_logs_urls(
         self,

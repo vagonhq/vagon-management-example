@@ -64,7 +64,11 @@ api_client = VagonAPI(
 
 @app.before_request
 def log_request_info():
-    """Log all incoming requests."""
+    """Log only API requests (not HTML page renders)."""
+    # Only log API endpoints, skip HTML page requests
+    if not request.path.startswith('/api/'):
+        return
+    
     logger.info(f"[REQUEST] {request.method} {request.path}")
     logger.info(f"  Remote Addr: {request.remote_addr}")
     logger.info(f"  User-Agent: {request.headers.get('User-Agent', 'N/A')}")
@@ -97,10 +101,14 @@ def log_request_info():
 
 @app.after_request
 def log_response_info(response):
-    """Log all outgoing responses."""
+    """Log only API responses (not HTML page renders)."""
+    # Only log API endpoints, skip HTML page requests
+    if not request.path.startswith('/api/'):
+        return response
+    
     logger.info(f"[RESPONSE] {request.method} {request.path} -> {response.status_code}")
     
-    # Always try to log response body, regardless of content type
+    # Only log JSON responses (API responses)
     try:
         import json
         # Get response data
@@ -112,12 +120,12 @@ def log_response_info(response):
                 parsed_json = json.loads(response_data)
                 logger.info(f"  Response Body (JSON): {json.dumps(parsed_json, indent=2)}")
             except json.JSONDecodeError:
-                # If not JSON, log as text (limit to 1000 chars)
-                logger.info(f"  Response Body (text): {response_data[:1000]}")
+                # If not JSON, skip logging (probably HTML or other non-API content)
+                pass
         else:
             logger.info(f"  Response Body: (empty)")
             
-        # Also log headers for debugging
+        # Also log headers for debugging errors
         if response.status_code >= 400:
             logger.info(f"  Response Headers: {dict(response.headers)}")
     except Exception as e:
@@ -367,8 +375,18 @@ def index():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     query = request.args.get('q', None)
+    time_left = request.args.get('time_left', type=int)
+    has_session_data = request.args.get('has_session_data', type=lambda v: v.lower() == 'true' if v else None)
+    status = request.args.get('status', None)
 
-    result = api_client.list_machines(page=page, per_page=per_page, query=query)
+    result = api_client.list_machines(
+        page=page,
+        per_page=per_page,
+        query=query,
+        time_left=time_left,
+        has_session_data=has_session_data,
+        status=status
+    )
 
     # Flatten JSON:API format for template
     machines = flatten_jsonapi_list(result.get('machines', []))
@@ -380,6 +398,9 @@ def index():
         page=page,
         next_page=result.get('next_page'),
         query=query,
+        time_left=time_left,
+        has_session_data=has_session_data,
+        status=status,
         default_plan_id=os.getenv('DEFAULT_PLAN_ID', '')
     )
 
@@ -641,12 +662,30 @@ def api_list_machines():
     API endpoint to list machines (for use in modals and AJAX calls).
     
     Returns JSON with machines list in flattened format.
+    
+    Query parameters:
+        - page: Page number (default: 1)
+        - per_page: Items per page (default: 20)
+        - q: Search query
+        - time_left: Filter by remaining usage in minutes
+        - has_session_data: Filter by whether machine has session data (true/false)
+        - status: Filter by machine status (e.g., 'running', 'off', 'stopping')
     """
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     query = request.args.get('q', None)
+    time_left = request.args.get('time_left', type=int)
+    has_session_data = request.args.get('has_session_data', type=lambda v: v.lower() == 'true' if v else None)
+    status = request.args.get('status', None)
 
-    result = api_client.list_machines(page=page, per_page=per_page, query=query)
+    result = api_client.list_machines(
+        page=page,
+        per_page=per_page,
+        query=query,
+        time_left=time_left,
+        has_session_data=has_session_data,
+        status=status
+    )
 
     # Flatten JSON:API format for template
     machines = flatten_jsonapi_list(result.get('machines', []))
@@ -1222,6 +1261,52 @@ def get_machine_available_machine_types(machine_id):
         raise
     except Exception as e:
         logger.error(f"[GET AVAILABLE MACHINE TYPES] Unexpected error: machine_id={machine_id}, error={str(e)}")
+        raise
+
+
+@app.route('/api/machines/<int:machine_id>/permissions', methods=['POST'])
+@handle_api_errors
+def update_machine_permissions(machine_id):
+    """
+    Update permissions for a machine.
+
+    This demonstrates the update_machine_permissions() API method.
+
+    JSON body:
+        {
+            "permissions": {
+                "screen_recording_enabled": true,
+                "input_recording_enabled": false
+            }
+        }
+    """
+    logger.info(f"[UPDATE MACHINE PERMISSIONS] machine_id={machine_id}")
+    # Use silent=True to avoid BadRequest exception if JSON is invalid or empty
+    data = request.get_json(silent=True) or {}
+    permissions = data.get('permissions')
+    
+    if not permissions:
+        logger.error("[UPDATE MACHINE PERMISSIONS] Missing permissions parameter")
+        return jsonify({
+            'error': 'permissions parameter is required',
+            'client_code': 400,
+            'status_code': 400
+        }), 400
+    
+    logger.info(f"[UPDATE MACHINE PERMISSIONS] Request: machine_id={machine_id}, permissions={permissions}")
+    
+    try:
+        result = api_client.update_machine_permissions(
+            machine_id=machine_id,
+            permissions=permissions
+        )
+        logger.info(f"[UPDATE MACHINE PERMISSIONS] Success: machine_id={machine_id}")
+        return jsonify({'success': True, 'message': 'Machine permissions updated'})
+    except VagonAPIError as e:
+        logger.error(f"[UPDATE MACHINE PERMISSIONS] Error: machine_id={machine_id}, client_code={e.client_code}, status={e.status_code}, message={e.message}")
+        raise
+    except Exception as e:
+        logger.error(f"[UPDATE MACHINE PERMISSIONS] Unexpected error: machine_id={machine_id}, error={str(e)}")
         raise
 
 

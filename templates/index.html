@@ -12,17 +12,6 @@
         </div>
 
         <div class="flex items-center space-x-2">
-            <!-- Search -->
-            <form method="GET" class="flex items-center space-x-2">
-                <input type="text"
-                       name="q"
-                       value="{{ query or '' }}"
-                       placeholder="Search machines..."
-                       class="px-4 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
-                <button type="submit" class="px-4 py-2 bg-vagon-800 text-white rounded-lg text-sm hover:bg-vagon-700">
-                    Search
-                </button>
-            </form>
             <!-- Create Machine Button -->
             <button onclick="openCreateMachineModal()"
                     class="px-4 py-2 bg-vagon-800 text-white rounded-lg text-sm hover:bg-vagon-700 flex items-center space-x-2">
@@ -32,6 +21,83 @@
                 <span>Create Machine</span>
             </button>
         </div>
+    </div>
+
+    <!-- Filters and Search -->
+    <div class="bg-white rounded-lg border border-vagon-200 p-4">
+        <form method="GET" class="space-y-4">
+            <!-- Preserve existing query params -->
+            {% if page and page > 1 %}
+            <input type="hidden" name="page" value="{{ page }}">
+            {% endif %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                <!-- Search -->
+                <div class="flex flex-col">
+                    <label class="block text-xs font-medium text-vagon-600 mb-1">Search</label>
+                    <input type="text"
+                           name="q"
+                           value="{{ query or '' }}"
+                           placeholder="Search machines..."
+                           class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
+                </div>
+
+                <!-- Status Filter -->
+                <div class="flex flex-col">
+                    <label class="block text-xs font-medium text-vagon-600 mb-1">Status</label>
+                    <select name="status"
+                            class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
+                        <option value="">All Statuses</option>
+                        <option value="off" {% if status == 'off' %}selected{% endif %}>off - Machine is stopped</option>
+                        <option value="creating" {% if status == 'creating' %}selected{% endif %}>creating - Machine is started at the first time</option>
+                        <option value="turning_on" {% if status == 'turning_on' %}selected{% endif %}>turning_on - Machine is turning on</option>
+                        <option value="ready" {% if status == 'ready' %}selected{% endif %}>ready - Machine is running, and ready to connect</option>
+                        <option value="turning_off" {% if status == 'turning_off' %}selected{% endif %}>turning_off - Machine is turning off, to be stopped</option>
+                        <option value="resizing_disk" {% if status == 'resizing_disk' %}selected{% endif %}>resizing_disk - Machine disk size is expanding</option>
+                        <option value="installing" {% if status == 'installing' %}selected{% endif %}>installing - Machine image/template assignment post process is in progress</option>
+                        <option value="region_migration" {% if status == 'region_migration' %}selected{% endif %}>region_migration - Machine region migration is in progress</option>
+                        <option value="warming_up" {% if status == 'warming_up' %}selected{% endif %}>warming_up - Machine is getting ready at the first run</option>
+                        <option value="graceful_stopping" {% if status == 'graceful_stopping' %}selected{% endif %}>graceful_stopping - Machine is turning off gracefully, system is ensuring files are transferred before stopping</option>
+                    </select>
+                </div>
+
+                <!-- Time Left Filter -->
+                <div class="flex flex-col">
+                    <label class="block text-xs font-medium text-vagon-600 mb-1">Time Left (minutes)</label>
+                    <input type="number"
+                           name="time_left"
+                           value="{{ time_left or '' }}"
+                           placeholder="e.g., 60"
+                           min="0"
+                           class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
+                </div>
+
+                <!-- Has Session Data Filter -->
+                <div class="flex flex-col">
+                    <label class="block text-xs font-medium text-vagon-600 mb-1">Has Session Data</label>
+                    <select name="has_session_data"
+                            class="w-full px-3 py-2 border border-vagon-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vagon-500">
+                        <option value="">All</option>
+                        <option value="true" {% if has_session_data == True %}selected{% endif %}>Yes</option>
+                        <option value="false" {% if has_session_data == False %}selected{% endif %}>No</option>
+                    </select>
+                </div>
+
+                <!-- Filter Actions -->
+                <div class="flex items-end space-x-2">
+                    <button type="submit"
+                            class="px-4 py-2 bg-vagon-800 text-white rounded-lg text-sm hover:bg-vagon-700 flex-1">
+                        Apply Filters
+                    </button>
+                    {% if query or status or time_left or has_session_data %}
+                    <a href="{{ url_for('index') }}"
+                       class="px-4 py-2 border border-vagon-300 rounded-lg text-sm hover:bg-vagon-50 whitespace-nowrap">
+                        Clear
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
     </div>
 
     <!-- Machines Table -->
@@ -119,7 +185,7 @@
     <div class="flex justify-between items-center">
         <div>
             {% if page > 1 %}
-                <a href="?page={{ page - 1 }}{% if query %}&q={{ query }}{% endif %}"
+                <a href="?page={{ page - 1 }}{% if query %}&q={{ query|urlencode }}{% endif %}{% if status %}&status={{ status|urlencode }}{% endif %}{% if time_left %}&time_left={{ time_left }}{% endif %}{% if has_session_data == True %}&has_session_data=true{% elif has_session_data == False %}&has_session_data=false{% endif %}"
                    class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
                     Previous
                 </a>
@@ -128,7 +194,7 @@
         <span class="text-sm text-vagon-500">Page {{ page }}</span>
         <div>
             {% if next_page %}
-                <a href="?page={{ next_page }}{% if query %}&q={{ query }}{% endif %}"
+                <a href="?page={{ next_page }}{% if query %}&q={{ query|urlencode }}{% endif %}{% if status %}&status={{ status|urlencode }}{% endif %}{% if time_left %}&time_left={{ time_left }}{% endif %}{% if has_session_data == True %}&has_session_data=true{% elif has_session_data == False %}&has_session_data=false{% endif %}"
                    class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
                     Next
                 </a>

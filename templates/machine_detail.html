@@ -83,6 +83,10 @@
                 {% else %}
                     <span class="px-4 py-2 text-sm text-vagon-500">Machine is {{ machine.friendly_status }}...</span>
                 {% endif %}
+                <button onclick="openPermissionsModal({{ machine.id }})"
+                        class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
+                    Permissions
+                </button>
                 <a href="{{ url_for('user_action_logs', organization_machine_id=machine.id) }}"
                    class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
                     View Activity Logs
@@ -288,6 +292,49 @@
                 <button onclick="closeAccessModal()"
                         class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
                     Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Permissions Modal -->
+<div id="permissionsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50" onclick="if(event.target === this) closePermissionsModal()">
+    <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <h3 class="text-lg font-medium text-vagon-900 mb-4">Update Machine Permissions</h3>
+        <div class="space-y-4">
+            <!-- Permissions List -->
+            <div>
+                <label class="block text-sm text-vagon-600 mb-1">Permissions</label>
+                <div id="permissionsList" class="border border-vagon-300 rounded-lg p-3 max-h-64 overflow-y-auto space-y-2">
+                    <p class="text-sm text-vagon-400">Loading permissions...</p>
+                </div>
+                <p class="text-xs text-vagon-400 mt-1">Configure permission settings for the machine.</p>
+            </div>
+
+            <!-- Error Message -->
+            <div id="permissionsError" class="hidden bg-red-50 border border-red-200 rounded-lg p-3">
+                <p class="text-sm text-red-600" id="permissionsErrorMessage"></p>
+            </div>
+
+            <!-- Success Message -->
+            <div id="permissionsSuccess" class="hidden bg-green-50 border border-green-200 rounded-lg p-3">
+                <p class="text-sm text-green-600" id="permissionsSuccessMessage"></p>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="permissionsLoading" class="hidden text-center">
+                <p class="text-sm text-vagon-500">Updating permissions...</p>
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-4">
+                <button onclick="closePermissionsModal()"
+                        class="px-4 py-2 text-sm border border-vagon-300 rounded-lg hover:bg-vagon-50">
+                    Cancel
+                </button>
+                <button id="updatePermissionsButton" onclick="updatePermissions()"
+                        class="px-4 py-2 text-sm bg-vagon-800 text-white rounded-lg hover:bg-vagon-700">
+                    Update Permissions
                 </button>
             </div>
         </div>
@@ -587,6 +634,172 @@
             location.reload();
         } catch (error) {
             showToast('Error: ' + error.message);
+        }
+    }
+
+    // =============================================================================
+    // PERMISSIONS MODAL
+    // =============================================================================
+
+    let permissionFieldsData = null;
+    let currentMachinePermissions = null;
+
+    async function openPermissionsModal(machineId) {
+        const modal = document.getElementById('permissionsModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        // Reset messages
+        document.getElementById('permissionsError').classList.add('hidden');
+        document.getElementById('permissionsSuccess').classList.add('hidden');
+        document.getElementById('permissionsLoading').classList.add('hidden');
+
+        // Load permission fields if not already loaded
+        if (!permissionFieldsData) {
+            await loadPermissionFields();
+        }
+
+        // Load current machine permissions
+        await loadCurrentMachinePermissions(machineId);
+
+        // Populate permissions list
+        populatePermissionsList();
+    }
+
+    function closePermissionsModal() {
+        const modal = document.getElementById('permissionsModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    async function loadPermissionFields() {
+        const permissionsList = document.getElementById('permissionsList');
+
+        try {
+            permissionsList.innerHTML = '<p class="text-sm text-vagon-400">Loading permissions...</p>';
+
+            const response = await fetch('/api/machines/permission-fields');
+            if (!response.ok) {
+                throw new Error('Failed to load permission fields');
+            }
+
+            const data = await response.json();
+            permissionFieldsData = data.permission_fields || [];
+        } catch (error) {
+            console.error('Error loading permission fields:', error);
+            permissionsList.innerHTML = '<p class="text-sm text-red-600">Error loading permissions. Please try again.</p>';
+        }
+    }
+
+    async function loadCurrentMachinePermissions(machineId) {
+        try {
+            const response = await fetch(`/api/machines/${machineId}`);
+            if (!response.ok) {
+                throw new Error('Failed to load machine permissions');
+            }
+
+            const data = await response.json();
+            // Machine data is in JSON:API format, need to extract from attributes
+            const attributes = data.attributes || data;
+            currentMachinePermissions = attributes.permissions || {};
+        } catch (error) {
+            console.error('Error loading machine permissions:', error);
+            currentMachinePermissions = {};
+        }
+    }
+
+    function populatePermissionsList() {
+        const permissionsList = document.getElementById('permissionsList');
+        
+        if (!permissionFieldsData || permissionFieldsData.length === 0) {
+            permissionsList.innerHTML = '<p class="text-sm text-vagon-400">No permissions available</p>';
+            return;
+        }
+
+        permissionsList.innerHTML = '';
+        permissionFieldsData.forEach(field => {
+            const permissionItem = document.createElement('div');
+            permissionItem.className = 'flex items-center space-x-2';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `permission-${field.name}`;
+            checkbox.name = `permission-${field.name}`;
+            checkbox.value = field.name;
+            
+            // Use current machine permission if available, otherwise use default
+            if (currentMachinePermissions && currentMachinePermissions.hasOwnProperty(field.name)) {
+                checkbox.checked = currentMachinePermissions[field.name];
+            } else {
+                checkbox.checked = field.default;
+            }
+            
+            checkbox.className = 'rounded border-vagon-300 text-vagon-600 focus:ring-vagon-500';
+
+            const label = document.createElement('label');
+            label.htmlFor = `permission-${field.name}`;
+            label.className = 'text-sm text-vagon-700 cursor-pointer flex-1';
+            
+            // Format field name for display
+            const displayName = field.name
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, l => l.toUpperCase())
+                .replace('Vagon', 'Vagon');
+            
+            label.innerHTML = `${displayName} <span class="text-vagon-400 text-xs">(default: ${field.default ? 'enabled' : 'disabled'})</span>`;
+
+            permissionItem.appendChild(checkbox);
+            permissionItem.appendChild(label);
+            permissionsList.appendChild(permissionItem);
+        });
+    }
+
+    async function updatePermissions() {
+        // Get permission values
+        const permissionCheckboxes = document.querySelectorAll('#permissionsList input[type="checkbox"]');
+        const permissions = {};
+        permissionCheckboxes.forEach(checkbox => {
+            permissions[checkbox.value] = checkbox.checked;
+        });
+
+        // Hide previous messages
+        document.getElementById('permissionsError').classList.add('hidden');
+        document.getElementById('permissionsSuccess').classList.add('hidden');
+        document.getElementById('permissionsLoading').classList.remove('hidden');
+        document.getElementById('updatePermissionsButton').disabled = true;
+
+        try {
+            const response = await fetch(`/api/machines/${machineId}/permissions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ permissions: permissions })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to update permissions');
+            }
+
+            // Show success message
+            document.getElementById('permissionsLoading').classList.add('hidden');
+            document.getElementById('permissionsSuccessMessage').textContent = 'Permissions updated successfully!';
+            document.getElementById('permissionsSuccess').classList.remove('hidden');
+
+            // Reload page after a short delay to show updated permissions
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+
+        } catch (error) {
+            console.error('Error updating permissions:', error);
+            document.getElementById('permissionsLoading').classList.add('hidden');
+            document.getElementById('permissionsErrorMessage').textContent = error.message || 'Failed to update permissions. Please try again.';
+            document.getElementById('permissionsError').classList.remove('hidden');
+        } finally {
+            document.getElementById('updatePermissionsButton').disabled = false;
         }
     }
 </script>
